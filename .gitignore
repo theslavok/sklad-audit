@@ -1,0 +1,6 @@
+.DS_Store
+Thumbs.db
+_xlsx_build/
+node_modules/
+.vercel
+.netlify
