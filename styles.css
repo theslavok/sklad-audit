@@ -282,6 +282,16 @@ h1 {
   margin-top: 10px;
 }
 
+.page-bottom-actions {
+  display: flex;
+  justify-content: center;
+  margin: 28px 0 8px;
+}
+
+.btn-to-top {
+  min-width: 140px;
+}
+
 .card,
 .item,
 .wh-row {

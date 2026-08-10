@@ -63,7 +63,7 @@ function migrateLegacyOnce() {
   try {
     const legacyRaw = localStorage.getItem(LEGACY_KEY);
     if (!legacyRaw) return;
-    if (localStorage.getItem(DRAFT_KEY) || localStorage.getItem(LOCAL_HISTORY_KEY)) {
+    if (localStorage.getItem(LOCAL_HISTORY_KEY) || sessionStorage.getItem(DRAFT_KEY) || localStorage.getItem(DRAFT_KEY)) {
       localStorage.removeItem(LEGACY_KEY);
       return;
     }
@@ -78,7 +78,7 @@ function migrateLegacyOnce() {
       byWarehouse: parsed.byWarehouse || {},
     };
     if (draft.warehouses.length) {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     }
     localStorage.removeItem(LEGACY_KEY);
   } catch {
@@ -103,7 +103,14 @@ function saveLocalHistory(list) {
 
 function readDraft() {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
+    let raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) {
+      raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        sessionStorage.setItem(DRAFT_KEY, raw);
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    }
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed?.warehouses?.length) return null;
@@ -144,10 +151,11 @@ function saveState() {
     activeId: state.activeId,
     byWarehouse: state.byWarehouse,
   };
-  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
 }
 
 function clearDraftStorage() {
+  sessionStorage.removeItem(DRAFT_KEY);
   localStorage.removeItem(DRAFT_KEY);
 }
 
@@ -1059,6 +1067,14 @@ function startNewAudit() {
   enterApp("setup");
 }
 
+function openNewAuditWindow() {
+  const u = new URL(location.href);
+  u.search = "";
+  u.searchParams.set("new", "1");
+  u.hash = "";
+  window.open(u.toString(), "_blank", "noopener,noreferrer");
+}
+
 function continueDraft() {
   lastShareInfo = null;
   state = loadDraftState(DATA);
@@ -1139,10 +1155,16 @@ function bind() {
     if (node) node.addEventListener("click", () => saveCurrentAuditToHistory());
   });
 
-  const restart = $("#btn-restart");
-  if (restart) {
-    restart.addEventListener("click", () => showWelcome());
+  const newWindowBtn = $("#btn-new-window");
+  if (newWindowBtn) {
+    newWindowBtn.addEventListener("click", openNewAuditWindow);
   }
+
+  document.querySelectorAll("[data-scroll-top]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
 
   const btnNew = $("#btn-start-new");
   if (btnNew) btnNew.addEventListener("click", startNewAudit);
@@ -1171,6 +1193,17 @@ async function boot() {
     migrateLegacyOnce();
     bind();
     const params = new URLSearchParams(location.search);
+    if (params.get("new") === "1") {
+      try {
+        const clean = new URL(location.href);
+        clean.searchParams.delete("new");
+        history.replaceState({}, "", clean.pathname + clean.search + clean.hash);
+      } catch {
+        /* ignore */
+      }
+      startNewAudit();
+      return;
+    }
     const code = params.get("a");
     if (code) {
       await openSharedAudit(code);
