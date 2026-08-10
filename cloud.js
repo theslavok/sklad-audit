@@ -1,0 +1,116 @@
+(function (global) {
+  function cfg() {
+    return global.CLOUD_CONFIG || {};
+  }
+
+  function isCloudConfigured() {
+    const c = cfg();
+    return Boolean(c.supabaseUrl && c.supabaseAnonKey);
+  }
+
+  function headers(preferReturn) {
+    const c = cfg();
+    const h = {
+      apikey: c.supabaseAnonKey,
+      Authorization: "Bearer " + c.supabaseAnonKey,
+      "Content-Type": "application/json",
+    };
+    if (preferReturn) h.Prefer = preferReturn;
+    return h;
+  }
+
+  function baseUrl() {
+    return String(cfg().supabaseUrl || "").replace(/\/$/, "") + "/rest/v1/audits";
+  }
+
+  function shareCode() {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let out = "";
+    for (let i = 0; i < 8; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return out;
+  }
+
+  function rowToEntry(row) {
+    const payload = row.payload || {};
+    return Object.assign({}, payload, {
+      id: payload.id || row.id,
+      cloudId: row.id,
+      shareCode: row.share_code,
+      savedAt: payload.savedAt || row.created_at,
+      meta: payload.meta || { auditor: row.auditor || "", date: row.audit_date || "" },
+    });
+  }
+
+  async function cloudSaveAudit(entry) {
+    if (!isCloudConfigured()) throw new Error("cloud_not_configured");
+    const code = entry.shareCode || shareCode();
+    const body = {
+      share_code: code,
+      auditor: (entry.meta && entry.meta.auditor) || "",
+      audit_date: (entry.meta && entry.meta.date) || "",
+      payload: Object.assign({}, entry, { shareCode: code }),
+    };
+    const res = await fetch(baseUrl(), {
+      method: "POST",
+      headers: headers("return=representation"),
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error("cloud_save_failed: " + res.status + " " + text);
+    }
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return rowToEntry(row);
+  }
+
+  async function cloudListAudits(limit) {
+    if (!isCloudConfigured()) return [];
+    const url =
+      baseUrl() +
+      "?select=*&order=created_at.desc&limit=" +
+      encodeURIComponent(String(limit || 50));
+    const res = await fetch(url, { headers: headers() });
+    if (!res.ok) throw new Error("cloud_list_failed: " + res.status);
+    const rows = await res.json();
+    return (rows || []).map(rowToEntry);
+  }
+
+  async function cloudGetByCode(code) {
+    if (!isCloudConfigured()) throw new Error("cloud_not_configured");
+    const url =
+      baseUrl() +
+      "?share_code=eq." +
+      encodeURIComponent(String(code).trim().toUpperCase()) +
+      "&select=*&limit=1";
+    const res = await fetch(url, { headers: headers() });
+    if (!res.ok) throw new Error("cloud_get_failed: " + res.status);
+    const rows = await res.json();
+    if (!rows || !rows.length) return null;
+    return rowToEntry(rows[0]);
+  }
+
+  async function cloudDelete(cloudId) {
+    if (!isCloudConfigured() || !cloudId) return;
+    const url = baseUrl() + "?id=eq." + encodeURIComponent(cloudId);
+    const res = await fetch(url, { method: "DELETE", headers: headers() });
+    if (!res.ok) throw new Error("cloud_delete_failed: " + res.status);
+  }
+
+  function shareUrl(code) {
+    const u = new URL(location.href);
+    u.searchParams.set("a", code);
+    u.hash = "";
+    return u.toString();
+  }
+
+  global.AuditCloud = {
+    isCloudConfigured,
+    cloudSaveAudit,
+    cloudListAudits,
+    cloudGetByCode,
+    cloudDelete,
+    shareCode,
+    shareUrl,
+  };
+})(window);

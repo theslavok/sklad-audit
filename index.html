@@ -7,16 +7,42 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <div id="welcome" class="welcome" hidden>
+      <div class="welcome-card">
+        <p class="brand-mark">Склад-аудит</p>
+        <h1>Запуск аудита</h1>
+        <p class="lede">
+          Каждый запуск начинается с выбора. Новый аудит не подставляет прошлые ответы автоматически.
+        </p>
+        <div class="welcome-actions">
+          <button type="button" class="btn primary" id="btn-start-new">Начать новый аудит</button>
+          <button type="button" class="btn ghost" id="btn-continue-draft" hidden>
+            Продолжить черновик на этом устройстве
+          </button>
+        </div>
+        <div class="welcome-open">
+          <label>
+            Открыть сохранённый аудит по коду
+            <input type="text" id="welcome-code" placeholder="Например: AB12CD34" maxlength="12" />
+          </label>
+          <button type="button" class="btn ghost" id="btn-open-code">Открыть</button>
+        </div>
+        <p class="meta" id="welcome-cloud-status"></p>
+      </div>
+    </div>
+
+    <div id="app-shell" class="app-shell" hidden>
     <div class="bg-grid" aria-hidden="true"></div>
     <header class="top">
       <div class="brand">
         <p class="brand-mark">Склад-аудит</p>
         <h1>Чек-лист складских процессов</h1>
         <p class="lede">
-          Пре-опрос → обход → сводка. Учёт остатков — в 1С. Данные аудита сохраняются в браузере.
+          Пре-опрос → обход → сводка. Учёт остатков — в 1С. Общая история — через облако (см. SETUP-CLOUD.md).
         </p>
       </div>
       <div class="top-actions">
+        <button type="button" class="btn ghost" id="btn-restart">Новый аудит</button>
         <button type="button" class="btn ghost" id="btn-export">Скачать CSV</button>
         <button type="button" class="btn ghost" id="btn-backup">Резервная копия (JSON)</button>
         <label class="btn ghost file-btn">
@@ -123,9 +149,10 @@
         <div class="stack" id="gaps-list"></div>
         <div class="history-actions">
           <button type="button" class="btn primary" id="btn-save-history">
-            Сохранить текущий аудит в историю
+            Сохранить текущий аудит и получить ссылку
           </button>
         </div>
+        <div id="summary-share"></div>
       </section>
 
       <section id="panel-history" class="panel">
@@ -133,7 +160,8 @@
           <div>
             <h2>История прохождения аудитов</h2>
             <p>
-              Сохранённые результаты обходов. Можно просмотреть детали или удалить запись.
+              Общие сохранённые аудиты (облако) и ссылки для команды. Можно открыть детали, загрузить в работу
+              или удалить.
             </p>
           </div>
           <button type="button" class="btn primary" id="btn-save-history-2">
@@ -147,12 +175,15 @@
 
     <footer class="foot">
       <p>
-        Данные сохраняются в этом браузере. Рабочая ссылка сайта:
-        https://theslavok.github.io/sklad-audit/
+        Рабочая ссылка сайта: https://theslavok.github.io/sklad-audit/ · Настройка общего хранения:
+        SETUP-CLOUD.md
       </p>
     </footer>
+    </div>
 
     <script src="./data.js"></script>
+    <script src="./cloud-config.js"></script>
+    <script src="./cloud.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

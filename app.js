@@ -1,4 +1,6 @@
-const STORAGE_KEY = "sklad-audit-v1";
+const DRAFT_KEY = "sklad-audit-draft-v2";
+const LOCAL_HISTORY_KEY = "sklad-audit-history-v2";
+const LEGACY_KEY = "sklad-audit-v1";
 
 /** @typedef {"yes"|"partial"|"no"|""} GateAnswer */
 /** @typedef {"yes"|"partial"|"no"|"na"|""} Status */
@@ -22,6 +24,8 @@ const APP_LABEL = {
 
 let DATA = null;
 let state = null;
+let bound = false;
+let lastShareInfo = null;
 
 function uid() {
   return `wh_${Math.random().toString(36).slice(2, 9)}`;
@@ -55,21 +59,100 @@ function defaultState(data) {
   };
 }
 
-function loadState(data) {
+function migrateLegacyOnce() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState(data);
-    const parsed = JSON.parse(raw);
-    if (!parsed?.warehouses?.length) return defaultState(data);
-    if (!Array.isArray(parsed.history)) parsed.history = [];
-    return parsed;
+    const legacyRaw = localStorage.getItem(LEGACY_KEY);
+    if (!legacyRaw) return;
+    if (localStorage.getItem(DRAFT_KEY) || localStorage.getItem(LOCAL_HISTORY_KEY)) {
+      localStorage.removeItem(LEGACY_KEY);
+      return;
+    }
+    const parsed = JSON.parse(legacyRaw);
+    if (Array.isArray(parsed.history) && parsed.history.length) {
+      localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(parsed.history));
+    }
+    const draft = {
+      meta: parsed.meta || { auditor: "", date: new Date().toISOString().slice(0, 10) },
+      warehouses: parsed.warehouses || [],
+      activeId: parsed.activeId || null,
+      byWarehouse: parsed.byWarehouse || {},
+    };
+    if (draft.warehouses.length) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    }
+    localStorage.removeItem(LEGACY_KEY);
   } catch {
-    return defaultState(data);
+    /* ignore */
   }
 }
 
+function getLocalHistory() {
+  try {
+    const raw = localStorage.getItem(LOCAL_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalHistory(list) {
+  localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(list || []));
+}
+
+function readDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.warehouses?.length) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function hasUsableDraft() {
+  const draft = readDraft();
+  if (!draft) return false;
+  const by = draft.byWarehouse || {};
+  return Object.values(by).some((wh) => {
+    const gates = Object.keys(wh.gates || {}).length;
+    const answers = Object.keys(wh.answers || {}).length;
+    return gates > 0 || answers > 0;
+  });
+}
+
+function loadDraftState(data) {
+  const draft = readDraft();
+  if (!draft) return defaultState(data);
+  return {
+    meta: draft.meta || { auditor: "", date: new Date().toISOString().slice(0, 10) },
+    warehouses: draft.warehouses,
+    activeId: draft.activeId || draft.warehouses[0]?.id || null,
+    byWarehouse: draft.byWarehouse || {},
+    history: getLocalHistory(),
+  };
+}
+
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!state) return;
+  const draft = {
+    meta: state.meta,
+    warehouses: state.warehouses,
+    activeId: state.activeId,
+    byWarehouse: state.byWarehouse,
+  };
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+}
+
+function clearDraftStorage() {
+  localStorage.removeItem(DRAFT_KEY);
+}
+
+function cloudReady() {
+  return Boolean(window.AuditCloud && window.AuditCloud.isCloudConfigured());
 }
 
 function activeWh() {
@@ -437,25 +520,68 @@ function buildHistoryEntry() {
   };
 }
 
-function saveCurrentAuditToHistory() {
-  if (!Array.isArray(state.history)) state.history = [];
+async function saveCurrentAuditToHistory() {
+  if (!Array.isArray(state.history)) state.history = getLocalHistory();
   const entry = buildHistoryEntry();
   if (entry.answered === 0) {
     const ok = confirm(
-      "По текущему аудиту почти нет заполненных оценок. Всё равно сохранить в историю?"
+      "По текущему аудиту почти нет заполненных оценок. Всё равно сохранить?"
     );
     if (!ok) return;
   }
-  state.history.unshift(entry);
-  saveState();
-  alert("Аудит сохранён в историю.");
+
+  let saved = entry;
+  if (cloudReady()) {
+    try {
+      saved = await window.AuditCloud.cloudSaveAudit(entry);
+    } catch (err) {
+      console.error(err);
+      const localOk = confirm(
+        "Не удалось сохранить в облако. Сохранить только на этом устройстве?"
+      );
+      if (!localOk) return;
+    }
+  }
+
+  const local = getLocalHistory().filter((h) => h.id !== saved.id);
+  local.unshift(saved);
+  saveLocalHistory(local);
+  state.history = local;
+  lastShareInfo = saved.shareCode
+    ? { code: saved.shareCode, url: window.AuditCloud.shareUrl(saved.shareCode) }
+    : null;
+
+  if (lastShareInfo) {
+    alert(
+      "Аудит сохранён и доступен команде.\n\nКод: " +
+        lastShareInfo.code +
+        "\nСсылка:\n" +
+        lastShareInfo.url
+    );
+  } else {
+    alert(
+      "Аудит сохранён на этом устройстве.\nЧтобы делиться ссылкой с другими, настройте облако — см. SETUP-CLOUD.md"
+    );
+  }
   switchTab("history");
+  renderSummaryShareHint();
 }
 
-function deleteHistoryEntry(id) {
+async function deleteHistoryEntry(id) {
   if (!confirm("Удалить эту запись из истории?")) return;
+  const entry = (state.history || []).find((h) => h.id === id);
+  if (entry && entry.cloudId && cloudReady()) {
+    try {
+      await window.AuditCloud.cloudDelete(entry.cloudId);
+    } catch (err) {
+      console.error(err);
+      alert("Не удалось удалить из облака.");
+      return;
+    }
+  }
+  const next = getLocalHistory().filter((h) => h.id !== id);
+  saveLocalHistory(next);
   state.history = (state.history || []).filter((h) => h.id !== id);
-  saveState();
   const detail = $("#history-detail");
   if (detail) {
     detail.hidden = true;
@@ -477,14 +603,18 @@ function restoreHistoryEntry(id) {
   ) {
     return;
   }
-  state.meta = JSON.parse(JSON.stringify(entry.snapshot.meta));
-  state.warehouses = JSON.parse(JSON.stringify(entry.snapshot.warehouses));
-  state.activeId = entry.snapshot.activeId;
-  state.byWarehouse = JSON.parse(JSON.stringify(entry.snapshot.byWarehouse));
+  applySnapshot(entry.snapshot);
+  switchTab("summary");
+}
+
+function applySnapshot(snapshot) {
+  state.meta = JSON.parse(JSON.stringify(snapshot.meta));
+  state.warehouses = JSON.parse(JSON.stringify(snapshot.warehouses));
+  state.activeId = snapshot.activeId;
+  state.byWarehouse = JSON.parse(JSON.stringify(snapshot.byWarehouse));
   saveState();
   renderWarehouses();
   updateWhLabels();
-  switchTab("summary");
 }
 
 function formatSavedAt(iso) {
@@ -518,6 +648,29 @@ function showHistoryDetail(id) {
       text: `Сохранено: ${formatSavedAt(entry.savedAt)} · складов: ${entry.warehouseCount} · ответов: ${entry.answered}`,
     })
   );
+
+  if (entry.shareCode && cloudReady()) {
+    const url = window.AuditCloud.shareUrl(entry.shareCode);
+    const box = el("div", { className: "share-box" });
+    box.append(
+      el("p", { text: `Код для команды: ${entry.shareCode}` }),
+      el("p", { className: "meta", text: url }),
+      el("button", {
+        type: "button",
+        className: "btn ghost",
+        text: "Копировать ссылку",
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(url);
+            alert("Ссылка скопирована");
+          } catch {
+            prompt("Скопируйте ссылку:", url);
+          }
+        },
+      })
+    );
+    host.append(box);
+  }
 
   const tableWrap = el("div", { className: "table-wrap" });
   const table = el("table", { className: "data-table" });
@@ -567,17 +720,39 @@ function showHistoryDetail(id) {
   }
 }
 
-function renderHistory() {
-  if (!Array.isArray(state.history)) state.history = [];
+async function renderHistory() {
   const list = $("#history-list");
   if (!list) return;
   list.innerHTML = "";
+  list.append(el("p", { className: "meta", text: "Загрузка истории…" }));
 
-  if (!state.history.length) {
+  let entries = getLocalHistory();
+  if (cloudReady()) {
+    try {
+      entries = await window.AuditCloud.cloudListAudits(50);
+      saveLocalHistory(entries);
+    } catch (err) {
+      console.error(err);
+      list.innerHTML = "";
+      list.append(
+        el("p", {
+          className: "meta",
+          text: "Облако временно недоступно — показана локальная копия истории.",
+        })
+      );
+    }
+  }
+
+  state.history = entries;
+  list.innerHTML = "";
+
+  if (!entries.length) {
     list.append(
       el("p", {
         className: "meta",
-        text: "История пуста. Заполните обход и нажмите «Сохранить текущий аудит в историю» на вкладке «Сводка».",
+        text: cloudReady()
+          ? "Общая история пуста. Заполните обход и нажмите «Сохранить текущий аудит» на вкладке «Сводка»."
+          : "История пуста. После настройки облака (SETUP-CLOUD.md) записи будут доступны всей команде по ссылке.",
       })
     );
     const detail = $("#history-detail");
@@ -588,17 +763,18 @@ function renderHistory() {
     return;
   }
 
-  state.history.forEach((entry) => {
+  entries.forEach((entry) => {
     const card = el("div", { className: "history-card" });
     const title = `${entry.meta.date || "Дата не указана"} · ${entry.meta.auditor || "Аудитор не указан"}`;
     const yesTotal = (entry.results || []).reduce((s, r) => s + (r.yes || 0), 0);
     const noTotal = (entry.results || []).reduce((s, r) => s + (r.no || 0), 0);
     const partialTotal = (entry.results || []).reduce((s, r) => s + (r.partial || 0), 0);
+    const shareBit = entry.shareCode ? ` · код: ${entry.shareCode}` : "";
     card.append(
       el("h3", { text: title }),
       el("p", {
         className: "meta",
-        text: `Сохранено: ${formatSavedAt(entry.savedAt)} · складов: ${entry.warehouseCount} · заполнено оценок: ${entry.answered} · Да: ${yesTotal} · Частично: ${partialTotal} · Нет: ${noTotal} · разрывов: ${(entry.gaps || []).length}`,
+        text: `Сохранено: ${formatSavedAt(entry.savedAt)} · складов: ${entry.warehouseCount} · заполнено оценок: ${entry.answered} · Да: ${yesTotal} · Частично: ${partialTotal} · Нет: ${noTotal} · разрывов: ${(entry.gaps || []).length}${shareBit}`,
       })
     );
     const actions = el("div", { className: "actions" });
@@ -625,6 +801,20 @@ function renderHistory() {
     card.append(actions);
     list.append(card);
   });
+}
+
+function renderSummaryShareHint() {
+  const host = $("#summary-share");
+  if (!host) return;
+  host.innerHTML = "";
+  if (!lastShareInfo) return;
+  const box = el("div", { className: "share-box" });
+  box.append(
+    el("p", { text: "Ссылка для участников:" }),
+    el("p", { className: "meta", text: lastShareInfo.url }),
+    el("p", { className: "meta", text: `Код: ${lastShareInfo.code}` })
+  );
+  host.append(box);
 }
 
 function renderSummary() {
@@ -677,6 +867,7 @@ function renderSummary() {
       })
     );
   }
+  renderSummaryShareHint();
 }
 
 function csvEscape(v) {
@@ -760,8 +951,16 @@ function importBackup(file) {
       const parsed = JSON.parse(String(reader.result));
       const next = parsed.state || parsed;
       if (!next.warehouses || !next.byWarehouse) throw new Error("bad format");
-      if (!Array.isArray(next.history)) next.history = [];
-      state = next;
+      if (Array.isArray(next.history) && next.history.length) {
+        saveLocalHistory(next.history);
+      }
+      state = {
+        meta: next.meta || { auditor: "", date: new Date().toISOString().slice(0, 10) },
+        warehouses: next.warehouses,
+        activeId: next.activeId || next.warehouses[0]?.id || null,
+        byWarehouse: next.byWarehouse,
+        history: getLocalHistory(),
+      };
       saveState();
       renderWarehouses();
       updateWhLabels();
@@ -784,7 +983,81 @@ function addWarehouse() {
   updateWhLabels();
 }
 
+function showWelcome() {
+  const welcome = $("#welcome");
+  const shell = $("#app-shell");
+  if (welcome) welcome.hidden = false;
+  if (shell) shell.hidden = true;
+  const draftBtn = $("#btn-continue-draft");
+  if (draftBtn) draftBtn.hidden = !hasUsableDraft();
+  const status = $("#welcome-cloud-status");
+  if (status) {
+    status.textContent = cloudReady()
+      ? "Облако подключено: сохранённые аудиты доступны участникам по ссылке или коду."
+      : "Облако ещё не настроено — общая ссылка недоступна. См. SETUP-CLOUD.md. Можно работать локально и продолжить черновик на этом устройстве.";
+  }
+}
+
+function enterApp(tab) {
+  const welcome = $("#welcome");
+  const shell = $("#app-shell");
+  if (welcome) welcome.hidden = true;
+  if (shell) shell.hidden = false;
+  if (!state.activeId && state.warehouses[0]) state.activeId = state.warehouses[0].id;
+  renderWarehouses();
+  updateWhLabels();
+  switchTab(tab || "setup");
+}
+
+function startNewAudit() {
+  lastShareInfo = null;
+  state = defaultState(DATA);
+  state.history = getLocalHistory();
+  clearDraftStorage();
+  saveState();
+  enterApp("setup");
+}
+
+function continueDraft() {
+  lastShareInfo = null;
+  state = loadDraftState(DATA);
+  enterApp("setup");
+}
+
+async function openSharedAudit(code) {
+  const clean = String(code || "")
+    .trim()
+    .toUpperCase();
+  if (!clean) {
+    alert("Введите код аудита");
+    return;
+  }
+  if (!cloudReady()) {
+    alert("Облако не настроено. Открыть чужой аудит по коду нельзя — см. SETUP-CLOUD.md");
+    return;
+  }
+  try {
+    const entry = await window.AuditCloud.cloudGetByCode(clean);
+    if (!entry || !entry.snapshot) {
+      alert("Аудит с таким кодом не найден");
+      return;
+    }
+    state = defaultState(DATA);
+    state.history = getLocalHistory();
+    applySnapshot(entry.snapshot);
+    lastShareInfo = { code: entry.shareCode || clean, url: window.AuditCloud.shareUrl(entry.shareCode || clean) };
+    enterApp("summary");
+    alert("Открыт общий аудит " + (entry.shareCode || clean));
+  } catch (err) {
+    console.error(err);
+    alert("Не удалось загрузить аудит по коду");
+  }
+}
+
 function bind() {
+  if (bound) return;
+  bound = true;
+
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
   });
@@ -822,11 +1095,31 @@ function bind() {
   const saveBtns = ["#btn-save-history", "#btn-save-history-2"];
   saveBtns.forEach((sel) => {
     const node = $(sel);
-    if (node) node.addEventListener("click", saveCurrentAuditToHistory);
+    if (node) node.addEventListener("click", () => saveCurrentAuditToHistory());
   });
+
+  const restart = $("#btn-restart");
+  if (restart) {
+    restart.addEventListener("click", () => showWelcome());
+  }
+
+  const btnNew = $("#btn-start-new");
+  if (btnNew) btnNew.addEventListener("click", startNewAudit);
+  const btnDraft = $("#btn-continue-draft");
+  if (btnDraft) btnDraft.addEventListener("click", continueDraft);
+  const btnCode = $("#btn-open-code");
+  if (btnCode) {
+    btnCode.addEventListener("click", () => openSharedAudit($("#welcome-code")?.value));
+  }
+  const codeInput = $("#welcome-code");
+  if (codeInput) {
+    codeInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") openSharedAudit(codeInput.value);
+    });
+  }
 }
 
-function boot() {
+async function boot() {
   DATA = window.CHECKLIST_DATA || null;
   if (!DATA || !DATA.items || !DATA.screening) {
     document.body.innerHTML =
@@ -834,18 +1127,15 @@ function boot() {
     return;
   }
   try {
-    state = loadState(DATA);
-    if (!state.warehouses || !state.warehouses.length) {
-      state = defaultState(DATA);
-    }
-    if (!Array.isArray(state.history)) state.history = [];
-    if (!state.activeId && state.warehouses[0]) {
-      state.activeId = state.warehouses[0].id;
-    }
+    migrateLegacyOnce();
     bind();
-    renderWarehouses();
-    updateWhLabels();
-    switchTab("setup");
+    const params = new URLSearchParams(location.search);
+    const code = params.get("a");
+    if (code) {
+      await openSharedAudit(code);
+      if ($("#app-shell") && !$("#app-shell").hidden) return;
+    }
+    showWelcome();
   } catch (err) {
     console.error(err);
     document.body.innerHTML =

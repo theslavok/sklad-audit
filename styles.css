@@ -209,6 +209,63 @@ h1 {
   display: none;
 }
 
+.welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 32, 24, 0.45);
+}
+
+.welcome[hidden],
+.app-shell[hidden] {
+  display: none !important;
+}
+
+.welcome-card {
+  width: min(520px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 28px 24px;
+  box-shadow: var(--shadow);
+}
+
+.welcome-card h1 {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-size: 1.7rem;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 18px 0 16px;
+}
+
+.welcome-open {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.welcome-open .btn {
+  justify-self: start;
+}
+
+.share-box {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  word-break: break-all;
+}
+
 .card,
 .item,
 .wh-row {
