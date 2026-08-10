@@ -5,19 +5,19 @@ const STORAGE_KEY = "sklad-audit-v1";
 /** @typedef {"core"|"required"|"elevated"|"na"|"pending"} Applicability */
 
 const STATUS_LABEL = {
-  yes: "╨Ф╨░",
-  partial: "╨з╨░╤Б╤В╨╕╤З╨╜╨╛",
-  no: "╨Э╨╡╤В",
-  na: "╨Э/╨┐",
-  "": "тАФ",
+  yes: "Да",
+  partial: "Частично",
+  no: "Нет",
+  na: "Н/п",
+  "": "—",
 };
 
 const APP_LABEL = {
-  core: "╨С╨░╨╖╨╛╨▓╤Л╨╣",
-  required: "╨Ю╨▒╤П╨╖╨░╤В╨╡╨╗╨╡╨╜",
-  elevated: "╨г╤Б╨╕╨╗╨╡╨╜",
-  na: "╨Э/╨┐",
-  pending: "╨Ю╨╢╨╕╨┤╨░╨╡╤В ╨┐╤А╨╡-╨╛╨┐╤А╨╛╤Б",
+  core: "Базовый",
+  required: "Обязателен",
+  elevated: "Усилен",
+  na: "Н/п",
+  pending: "Ожидает пре-опрос",
 };
 
 let DATA = null;
@@ -40,7 +40,7 @@ function emptyWarehouseState() {
 }
 
 function defaultState(data) {
-  const warehouses = (data.warehouses || ["╨б╨║╨╗╨░╨┤ 1", "╨б╨║╨╗╨░╨┤ 2"]).map((name) => ({
+  const warehouses = (data.warehouses || ["Склад 1", "Склад 2"]).map((name) => ({
     id: uid(),
     name,
   }));
@@ -150,7 +150,7 @@ function renderWarehouses() {
     const activate = el("button", {
       type: "button",
       className: "btn ghost",
-      text: w.id === state.activeId ? "╨Р╨║╤В╨╕╨▓╨╜╤Л╨╣" : "╨б╨┤╨╡╨╗╨░╤В╤М ╨░╨║╤В╨╕╨▓╨╜╤Л╨╝",
+      text: w.id === state.activeId ? "Активный" : "Сделать активным",
       onClick: () => {
         state.activeId = w.id;
         saveState();
@@ -161,9 +161,9 @@ function renderWarehouses() {
     const remove = el("button", {
       type: "button",
       className: "btn danger-ghost",
-      text: "╨г╨┤╨░╨╗╨╕╤В╤М",
+      text: "Удалить",
       onClick: () => {
-        if (state.warehouses.length <= 1) return alert("╨Э╤Г╨╢╨╡╨╜ ╤Е╨╛╤В╤П ╨▒╤Л ╨╛╨┤╨╕╨╜ ╤Б╨║╨╗╨░╨┤");
+        if (state.warehouses.length <= 1) return alert("Нужен хотя бы один склад");
         state.warehouses = state.warehouses.filter((x) => x.id !== w.id);
         delete state.byWarehouse[w.id];
         if (state.activeId === w.id) state.activeId = state.warehouses[0].id;
@@ -178,7 +178,7 @@ function renderWarehouses() {
 }
 
 function updateWhLabels() {
-  const name = activeWh()?.name || "тАФ";
+  const name = activeWh()?.name || "—";
   const a = $("#screen-wh-name");
   const b = $("#audit-wh-name");
   if (a) a.textContent = name;
@@ -197,14 +197,14 @@ function renderScreening() {
     item.append(
       el("h3", { text: q.text }),
       q.explain ? el("p", { className: "explain", text: q.explain }) : null,
-      el("p", { className: "meta", text: `╨Т╨╗╨╕╤П╨╡╤В ╨╜╨░ ╤Б╨╛╤Б╤В╨░╨▓ ╨╛╨▒╤Е╨╛╨┤╨░: ${q.affects}` })
+      el("p", { className: "meta", text: `Влияет на состав обхода: ${q.affects}` })
     );
     const select = el("select");
     [
-      ["", "╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡тАж"],
-      ["yes", "╨Ф╨░"],
-      ["partial", "╨з╨░╤Б╤В╨╕╤З╨╜╨╛"],
-      ["no", "╨Э╨╡╤В"],
+      ["", "Выберите…"],
+      ["yes", "Да"],
+      ["partial", "Частично"],
+      ["no", "Нет"],
     ].forEach(([v, label]) => {
       const o = el("option", { value: v, text: label });
       if ((gates[q.key] || "") === v) o.selected = true;
@@ -226,11 +226,11 @@ function renderScreening() {
   const elevated = apps.filter((a) => a === "elevated").length;
   $("#screen-stats").innerHTML = "";
   [
-    [`${answered}/${DATA.screening.length}`, "╨Ю╤В╨▓╨╡╤В╨╛╨▓ ╨┐╤А╨╡-╨╛╨┐╤А╨╛╤Б╨░"],
-    [String(active), "╨Я╤Г╨╜╨║╤В╨╛╨▓ ╨║ ╨╛╨▒╤Е╨╛╨┤╤Г"],
-    [String(na), "╨Э/╨┐"],
-    [String(elevated), "╨г╤Б╨╕╨╗╨╡╨╜╤Л"],
-    [String(pending), "╨Ц╨┤╤Г╤В ╨╛╤В╨▓╨╡╤В╨░"],
+    [`${answered}/${DATA.screening.length}`, "Ответов пре-опроса"],
+    [String(active), "Пунктов к обходу"],
+    [String(na), "Н/п"],
+    [String(elevated), "Усилены"],
+    [String(pending), "Ждут ответа"],
   ].forEach(([v, l]) => {
     $("#screen-stats").append(
       el("div", { className: "stat" }, [el("strong", { text: v }), el("span", { text: l })])
@@ -242,7 +242,7 @@ function fillSectionFilter() {
   const sel = $("#filter-section");
   const current = sel.value || "all";
   sel.innerHTML = "";
-  sel.append(el("option", { value: "all", text: "╨Т╤Б╨╡ ╨▒╨╗╨╛╨║╨╕" }));
+  sel.append(el("option", { value: "all", text: "Все блоки" }));
   sections().forEach((s) => sel.append(el("option", { value: s, text: s })));
   sel.value = [...sel.options].some((o) => o.value === current) ? current : "all";
 }
@@ -282,10 +282,10 @@ function renderAudit() {
 
   $("#audit-stats").innerHTML = "";
   [
-    [`${filled}/${walkItems.length}`, "╨Ч╨░╨┐╨╛╨╗╨╜╨╡╨╜╨╛"],
-    [String(yes), "╨Ф╨░"],
-    [String(partial), "╨з╨░╤Б╤В╨╕╤З╨╜╨╛"],
-    [String(no), "╨Э╨╡╤В"],
+    [`${filled}/${walkItems.length}`, "Заполнено"],
+    [String(yes), "Да"],
+    [String(partial), "Частично"],
+    [String(no), "Нет"],
   ].forEach(([v, l]) => {
     $("#audit-stats").append(
       el("div", { className: "stat" }, [el("strong", { text: v }), el("span", { text: l })])
@@ -321,21 +321,21 @@ function renderAudit() {
     if (item.explain) card.append(el("p", { className: "explain", text: item.explain }));
     if (item.hint) card.append(el("p", { className: "meta", text: item.hint }));
     if (app === "na" && item.ifAny) {
-      card.append(el("p", { className: "meta", text: `╨Э╨╡ ╨┐╤А╨╕╨╝╨╡╨╜╨╕╨╝╨╛ ╨┐╨╛ ╨┐╤А╨╡-╨╛╨┐╤А╨╛╤Б╤Г: ${item.ifAny}` }));
+      card.append(el("p", { className: "meta", text: `Не применимо по пре-опросу: ${item.ifAny}` }));
     }
     if (app === "pending" && item.ifAny) {
-      card.append(el("p", { className: "meta", text: `╨в╤А╨╡╨▒╤Г╨╡╤В╤Б╤П ╨╛╤В╨▓╨╡╤В ╨▓ ╨┐╤А╨╡-╨╛╨┐╤А╨╛╤Б╨╡: ${item.ifAny}` }));
+      card.append(el("p", { className: "meta", text: `Требуется ответ в пре-опросе: ${item.ifAny}` }));
     }
 
     const grid = el("div", { className: "item-grid" });
-    const statusWrap = el("label", { text: "╨Ю╤Ж╨╡╨╜╨║╨░" });
+    const statusWrap = el("label", { text: "Оценка" });
     const statusSel = el("select");
     [
-      ["", "╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡тАж"],
-      ["yes", "╨Ф╨░"],
-      ["partial", "╨з╨░╤Б╤В╨╕╤З╨╜╨╛"],
-      ["no", "╨Э╨╡╤В"],
-      ["na", "╨Э/╨┐"],
+      ["", "Выберите…"],
+      ["yes", "Да"],
+      ["partial", "Частично"],
+      ["no", "Нет"],
+      ["na", "Н/п"],
     ].forEach(([v, label]) => {
       const o = el("option", { value: v, text: label });
       if ((ans.status || "") === v) o.selected = true;
@@ -348,8 +348,8 @@ function renderAudit() {
     });
     statusWrap.append(statusSel);
 
-    const commentWrap = el("label", { text: "╨Ъ╨╛╨╝╨╝╨╡╨╜╤В╨░╤А╨╕╨╣ / ╨┤╨╛╨║╨░╨╖╨░╤В╨╡╨╗╤М╤Б╤В╨▓╨╛" });
-    const ta = el("textarea", { placeholder: "╨д╨░╨║╤В, ╨┤╨╛╨║╤Г╨╝╨╡╨╜╤В, ╨░╨┤╤А╨╡╤Б, ╤З╤В╨╛ ╨╕╤Б╨┐╤А╨░╨▓╨╕╤В╤М" });
+    const commentWrap = el("label", { text: "Комментарий / доказательство" });
+    const ta = el("textarea", { placeholder: "Факт, документ, адрес, что исправить" });
     ta.value = ans.comment || "";
     ta.addEventListener("input", () => {
       answers[item.id] = { status: answers[item.id]?.status || "", comment: ta.value };
@@ -368,7 +368,7 @@ function renderSummary() {
   thead.innerHTML = "";
   tbody.innerHTML = "";
   const headRow = el("tr");
-  ["╨б╨║╨╗╨░╨┤", "╨Ф╨░", "╨з╨░╤Б╤В╨╕╤З╨╜╨╛", "╨Э╨╡╤В", "╨Э/╨┐", "╨Ч╨░╨┐╨╛╨╗╨╜╨╡╨╜╨╛", "% ╨Ф╨░"].forEach((h) =>
+  ["Склад", "Да", "Частично", "Нет", "Н/п", "Заполнено", "% Да"].forEach((h) =>
     headRow.append(el("th", { text: h }))
   );
   thead.append(headRow);
@@ -388,7 +388,7 @@ function renderSummary() {
     const na = walk.filter((i) => answers[i.id]?.status === "na").length;
     const filled = walk.filter((i) => answers[i.id]?.status).length;
     const denom = yes + partial + no;
-    const pct = denom ? `${Math.round((yes / denom) * 100)}%` : "тАФ";
+    const pct = denom ? `${Math.round((yes / denom) * 100)}%` : "—";
     const tr = el("tr");
     [w.name, yes, partial, no, na, `${filled}/${walk.length}`, pct].forEach((v) =>
       tr.append(el("td", { text: String(v) }))
@@ -400,7 +400,7 @@ function renderSummary() {
       if (st !== "no" && st !== "partial") return;
       const gap = el("div", { className: `gap${st === "partial" ? " partial" : ""}` });
       gap.append(
-        el("div", { className: "where", text: `${w.name} ┬╖ ${item.section} ┬╖ ${STATUS_LABEL[st]}` }),
+        el("div", { className: "where", text: `${w.name} · ${item.section} · ${STATUS_LABEL[st]}` }),
         el("div", { text: item.text })
       );
       if (answers[item.id]?.comment) {
@@ -411,7 +411,7 @@ function renderSummary() {
   });
 
   if (!gapsHost.children.length) {
-    gapsHost.append(el("p", { className: "meta", text: "╨Я╨╛╨║╨░ ╨╜╨╡╤В ╨╛╤Ж╨╡╨╜╨╛╨║ ┬л╨Э╨╡╤В┬╗ / ┬л╨з╨░╤Б╤В╨╕╤З╨╜╨╛┬╗ ╤Б╤А╨╡╨┤╨╕ ╨░╨║╤В╨╕╨▓╨╜╤Л╤Е ╨┐╤Г╨╜╨║╤В╨╛╨▓." }));
+    gapsHost.append(el("p", { className: "meta", text: "Пока нет оценок «Нет» / «Частично» среди активных пунктов." }));
   }
 }
 
@@ -424,11 +424,11 @@ function csvEscape(v) {
 function exportCsv() {
   const sep = ";";
   const lines = [];
-  lines.push(["╨Р╤Г╨┤╨╕╤В╨╛╤А", state.meta.auditor].map(csvEscape).join(sep));
-  lines.push(["╨Ф╨░╤В╨░", state.meta.date].map(csvEscape).join(sep));
+  lines.push(["Аудитор", state.meta.auditor].map(csvEscape).join(sep));
+  lines.push(["Дата", state.meta.date].map(csvEscape).join(sep));
   lines.push("");
-  lines.push(["=== ╨Я╤А╨╡-╨╛╨┐╤А╨╛╤Б ==="].join(sep));
-  lines.push(["╨Ъ╨╗╤О╤З", "╨Т╨╛╨┐╤А╨╛╤Б", "╨Я╨╛╤П╤Б╨╜╨╡╨╜╨╕╨╡", ...state.warehouses.map((w) => w.name)].map(csvEscape).join(sep));
+  lines.push(["=== Пре-опрос ==="].join(sep));
+  lines.push(["Ключ", "Вопрос", "Пояснение", ...state.warehouses.map((w) => w.name)].map(csvEscape).join(sep));
   DATA.screening.forEach((q) => {
     const row = [q.key, q.text, q.explain || ""];
     state.warehouses.forEach((w) => {
@@ -438,16 +438,16 @@ function exportCsv() {
     lines.push(row.map(csvEscape).join(sep));
   });
   lines.push("");
-  lines.push(["=== ╨з╨╡╨║-╨╗╨╕╤Б╤В ==="].join(sep));
+  lines.push(["=== Чек-лист ==="].join(sep));
   const checkHeader = [
     "ID",
-    "╨С╨╗╨╛╨║",
-    "╨Я╤Г╨╜╨║╤В",
-    "╨Я╨╛╤П╤Б╨╜╨╡╨╜╨╕╨╡",
-    "╨Я╤А╨╕╨╛╤А╨╕╤В╨╡╤В╤Л",
-    "╨Х╤Б╨╗╨╕ ╨┤╨░",
-    "╨г╤Б╨╕╨╗╨╕╤В╤М ╨╡╤Б╨╗╨╕",
-    ...state.warehouses.flatMap((w) => [`${w.name} тАФ ╨Ю╤Ж╨╡╨╜╨║╨░`, `${w.name} тАФ ╨Ъ╨╛╨╝╨╝╨╡╨╜╤В╨░╤А╨╕╨╣`]),
+    "Блок",
+    "Пункт",
+    "Пояснение",
+    "Приоритеты",
+    "Если да",
+    "Усилить если",
+    ...state.warehouses.flatMap((w) => [`${w.name} — Оценка`, `${w.name} — Комментарий`]),
   ];
   lines.push(checkHeader.map(csvEscape).join(sep));
   DATA.items.forEach((item) => {
@@ -500,17 +500,17 @@ function importBackup(file) {
       saveState();
       renderWarehouses();
       updateWhLabels();
-      alert("╨Ш╨╝╨┐╨╛╤А╤В ╨▓╤Л╨┐╨╛╨╗╨╜╨╡╨╜");
+      alert("Импорт выполнен");
       switchTab("summary");
     } catch {
-      alert("╨Э╨╡ ╤Г╨┤╨░╨╗╨╛╤Б╤М ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╨╛╨▓╨░╤В╤М JSON");
+      alert("Не удалось импортировать JSON");
     }
   };
   reader.readAsText(file, "utf-8");
 }
 
 function addWarehouse() {
-  const w = { id: uid(), name: `╨б╨║╨╗╨░╨┤ ${state.warehouses.length + 1}` };
+  const w = { id: uid(), name: `Склад ${state.warehouses.length + 1}` };
   state.warehouses.push(w);
   state.byWarehouse[w.id] = emptyWarehouseState();
   state.activeId = w.id;
@@ -559,7 +559,7 @@ function boot() {
   DATA = window.CHECKLIST_DATA || null;
   if (!DATA || !DATA.items || !DATA.screening) {
     document.body.innerHTML =
-      "<main style='padding:2rem;font-family:sans-serif'><h1>╨Э╨╡ ╤Г╨┤╨░╨╗╨╛╤Б╤М ╨╖╨░╨│╤А╤Г╨╖╨╕╤В╤М ╨┤╨░╨╜╨╜╤Л╨╡ ╤З╨╡╨║-╨╗╨╕╤Б╤В╨░</h1><p>╨Я╤А╨╛╨▓╨╡╤А╤М╤В╨╡, ╤З╤В╨╛ ╤Д╨░╨╣╨╗ data.js ╨╛╤В╨║╤А╤Л╨▓╨░╨╡╤В╤Б╤П ╨▓╨╝╨╡╤Б╤В╨╡ ╤Б ╤Б╨░╨╣╤В╨╛╨╝.</p><p>╨Я╤А╨░╨▓╨╕╨╗╤М╨╜╨░╤П ╤Б╤Б╤Л╨╗╨║╨░: https://theslavok.github.io/sklad-audit/</p></main>";
+      "<main style='padding:2rem;font-family:sans-serif'><h1>Не удалось загрузить данные чек-листа</h1><p>Проверьте, что файл data.js открывается вместе с сайтом.</p><p>Правильная ссылка: https://theslavok.github.io/sklad-audit/</p></main>";
     return;
   }
   try {
@@ -577,7 +577,7 @@ function boot() {
   } catch (err) {
     console.error(err);
     document.body.innerHTML =
-      "<main style='padding:2rem;font-family:sans-serif'><h1>╨Ю╤И╨╕╨▒╨║╨░ ╨╖╨░╨┐╤Г╤Б╨║╨░</h1><p>" +
+      "<main style='padding:2rem;font-family:sans-serif'><h1>Ошибка запуска</h1><p>" +
       String(err && err.message ? err.message : err) +
       "</p></main>";
   }

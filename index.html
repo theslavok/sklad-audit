@@ -3,65 +3,65 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>╨б╨║╨╗╨░╨┤-╨░╤Г╨┤╨╕╤В тАФ ╤З╨╡╨║-╨╗╨╕╤Б╤В ╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨╛╨▓</title>
+    <title>Склад-аудит — чек-лист процессов</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="bg-grid" aria-hidden="true"></div>
     <header class="top">
       <div class="brand">
-        <p class="brand-mark">╨б╨║╨╗╨░╨┤-╨░╤Г╨┤╨╕╤В</p>
-        <h1>╨з╨╡╨║-╨╗╨╕╤Б╤В ╤Б╨║╨╗╨░╨┤╤Б╨║╨╕╤Е ╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨╛╨▓</h1>
+        <p class="brand-mark">Склад-аудит</p>
+        <h1>Чек-лист складских процессов</h1>
         <p class="lede">
-          ╨Я╤А╨╡-╨╛╨┐╤А╨╛╤Б тЖТ ╨╛╨▒╤Е╨╛╨┤ тЖТ ╤Б╨▓╨╛╨┤╨║╨░. ╨Ф╨░╨╜╨╜╤Л╨╡ ╤Б╨╛╤Е╤А╨░╨╜╤П╤О╤В╤Б╤П ╨▓ ╨▒╤А╨░╤Г╨╖╨╡╤А╨╡; ╨┤╨╛╤Б╤В╤Г╨┐╨╜╨░ ╨▓╤Л╨│╤А╤Г╨╖╨║╨░ ╨▓ Excel.
+          Пре-опрос → обход → сводка. Данные сохраняются в браузере; доступна выгрузка в Excel.
         </p>
       </div>
       <div class="top-actions">
-        <button type="button" class="btn ghost" id="btn-export">╨б╨║╨░╤З╨░╤В╤М Excel (CSV)</button>
-        <button type="button" class="btn ghost" id="btn-backup">╨а╨╡╨╖╨╡╤А╨▓╨╜╨░╤П ╨║╨╛╨┐╨╕╤П (JSON)</button>
+        <button type="button" class="btn ghost" id="btn-export">Скачать Excel (CSV)</button>
+        <button type="button" class="btn ghost" id="btn-backup">Резервная копия (JSON)</button>
         <label class="btn ghost file-btn">
-          ╨Ш╨╝╨┐╨╛╤А╤В JSON
+          Импорт JSON
           <input type="file" id="import-json" accept="application/json,.json" hidden />
         </label>
       </div>
     </header>
 
     <nav class="tabs" role="tablist">
-      <button type="button" class="tab active" data-tab="setup" role="tab">╨б╨║╨╗╨░╨┤╤Л</button>
-      <button type="button" class="tab" data-tab="screening" role="tab">╨Я╤А╨╡-╨╛╨┐╤А╨╛╤Б</button>
-      <button type="button" class="tab" data-tab="audit" role="tab">╨Ю╨▒╤Е╨╛╨┤</button>
-      <button type="button" class="tab" data-tab="summary" role="tab">╨б╨▓╨╛╨┤╨║╨░</button>
+      <button type="button" class="tab active" data-tab="setup" role="tab">Склады</button>
+      <button type="button" class="tab" data-tab="screening" role="tab">Пре-опрос</button>
+      <button type="button" class="tab" data-tab="audit" role="tab">Обход</button>
+      <button type="button" class="tab" data-tab="summary" role="tab">Сводка</button>
     </nav>
 
     <main>
       <section id="panel-setup" class="panel active">
         <div class="panel-head row-head">
           <div>
-            <h2>╨б╨║╨╗╨░╨┤╤Л ╨╕ ╨┐╨░╤Б╨┐╨╛╤А╤В</h2>
-            <p>╨Я╨╡╤А╨╡╨╕╨╝╨╡╨╜╤Г╨╣╤В╨╡ ╤Б╨║╨╗╨░╨┤╤Л ╨┐╨╛╨┤ ╨▓╨░╤И╤Г ╤Б╨╡╤В╤М. ╨Р╨║╤В╨╕╨▓╨╜╤Л╨╣ ╤Б╨║╨╗╨░╨┤ ╨╕╤Б╨┐╨╛╨╗╤М╨╖╤Г╨╡╤В╤Б╤П ╨╜╨░ ╨┐╤А╨╡-╨╛╨┐╤А╨╛╤Б╨╡ ╨╕ ╨╛╨▒╤Е╨╛╨┤╨╡.</p>
+            <h2>Склады и паспорт</h2>
+            <p>Переименуйте склады под вашу сеть. Активный склад используется на пре-опросе и обходе.</p>
           </div>
-          <button type="button" class="btn primary" id="btn-add-wh">╨Ф╨╛╨▒╨░╨▓╨╕╤В╤М ╤Б╨║╨╗╨░╨┤</button>
+          <button type="button" class="btn primary" id="btn-add-wh">Добавить склад</button>
         </div>
         <div class="card meta-card">
           <label>
-            ╨Р╤Г╨┤╨╕╤В╨╛╤А
-            <input type="text" id="meta-auditor" placeholder="╨д╨Ш╨Ю" autocomplete="name" />
+            Аудитор
+            <input type="text" id="meta-auditor" placeholder="ФИО" autocomplete="name" />
           </label>
           <label>
-            ╨Ф╨░╤В╨░ ╨░╤Г╨┤╨╕╤В╨░
+            Дата аудита
             <input type="date" id="meta-date" />
           </label>
         </div>
         <div class="wh-list" id="warehouse-list"></div>
-        <button type="button" class="btn primary" id="btn-add-wh-bottom">╨Ф╨╛╨▒╨░╨▓╨╕╤В╤М ╤Б╨║╨╗╨░╨┤</button>
+        <button type="button" class="btn primary" id="btn-add-wh-bottom">Добавить склад</button>
       </section>
 
       <section id="panel-screening" class="panel">
         <div class="panel-head">
-          <h2>╨Я╤А╨╡-╨╛╨┐╤А╨╛╤Б</h2>
+          <h2>Пре-опрос</h2>
           <p>
-            ╨Ф╨╗╤П ╤Б╨║╨╗╨░╨┤╨░ ┬л<span id="screen-wh-name">тАФ</span>┬╗. ╨Ю╤В╨▓╨╡╤В╤Л ╨╛╨┐╤А╨╡╨┤╨╡╨╗╤П╤О╤В ╤Б╨╛╤Б╤В╨░╨▓ ╨╛╨▒╤Е╨╛╨┤╨░:
-            ╨║╨░╨║╨╕╨╡ ╨┐╤Г╨╜╨║╤В╤Л ╨╛╨▒╤П╨╖╨░╤В╨╡╨╗╤М╨╜╤Л, ╤Г╤Б╨╕╨╗╨╡╨╜╤Л ╨╕╨╗╨╕ ╨╜╨╡ ╨┐╤А╨╕╨╝╨╡╨╜╨╕╨╝╤Л.
+            Для склада «<span id="screen-wh-name">—</span>». Ответы определяют состав обхода:
+            какие пункты обязательны, усилены или не применимы.
           </p>
         </div>
         <div class="stats" id="screen-stats"></div>
@@ -70,37 +70,37 @@
 
       <section id="panel-audit" class="panel">
         <div class="panel-head">
-          <h2>╨Ю╨▒╤Е╨╛╨┤</h2>
+          <h2>Обход</h2>
           <p>
-            ╨б╨║╨╗╨░╨┤ ┬л<span id="audit-wh-name">тАФ</span>┬╗. ╨Ю╤Ж╨╡╨╜╨║╨░ ┬л╨Ф╨░┬╗ тАФ ╤В╨╛╨╗╤М╨║╨╛ ╨┐╤А╨╕ ╤Г╤Б╤В╨╛╨╣╤З╨╕╨▓╨╛╨╝ ╨▓╤Л╨┐╨╛╨╗╨╜╨╡╨╜╨╕╨╕
-            ╤В╤А╨╡╨▒╨╛╨▓╨░╨╜╨╕╤П.
+            Склад «<span id="audit-wh-name">—</span>». Оценка «Да» — только при устойчивом выполнении
+            требования.
           </p>
         </div>
         <div class="filters">
           <label>
-            ╨С╨╗╨╛╨║
+            Блок
             <select id="filter-section">
-              <option value="all">╨Т╤Б╨╡ ╨▒╨╗╨╛╨║╨╕</option>
+              <option value="all">Все блоки</option>
             </select>
           </label>
           <label>
-            ╨Я╤А╨╕╨╛╤А╨╕╤В╨╡╤В
+            Приоритет
             <select id="filter-priority">
-              <option value="all">╨Т╤Б╨╡</option>
-              <option value="╤Б╨║╨╛╤А╨╛╤Б╤В╤М">╤Б╨║╨╛╤А╨╛╤Б╤В╤М</option>
-              <option value="╨╛╤Б╤В╨░╤В╨║╨╕">╨╛╤Б╤В╨░╤В╨║╨╕</option>
-              <option value="╨┐╨╛╤В╨╡╤А╨╕">╨┐╨╛╤В╨╡╤А╨╕</option>
-              <option value="╨▒╨╡╨╖╨╛╨┐╨░╤Б╨╜╨╛╤Б╤В╤М">╨▒╨╡╨╖╨╛╨┐╨░╤Б╨╜╨╛╤Б╤В╤М</option>
+              <option value="all">Все</option>
+              <option value="скорость">скорость</option>
+              <option value="остатки">остатки</option>
+              <option value="потери">потери</option>
+              <option value="безопасность">безопасность</option>
             </select>
           </label>
           <label>
-            ╨Ю╨▒╤К╤С╨╝
+            Объём
             <select id="filter-scope">
-              <option value="walk">╨Ъ ╨╛╨▒╤Е╨╛╨┤╤Г</option>
-              <option value="elevated">╨г╤Б╨╕╨╗╨╡╨╜╨╜╤Л╨╡</option>
-              <option value="na">╨Э/╨┐</option>
-              <option value="pending">╨Ю╨╢╨╕╨┤╨░╤О╤В ╨┐╤А╨╡-╨╛╨┐╤А╨╛╤Б</option>
-              <option value="all">╨Т╤Б╨╡ ╨┐╤Г╨╜╨║╤В╤Л</option>
+              <option value="walk">К обходу</option>
+              <option value="elevated">Усиленные</option>
+              <option value="na">Н/п</option>
+              <option value="pending">Ожидают пре-опрос</option>
+              <option value="all">Все пункты</option>
             </select>
           </label>
         </div>
@@ -110,8 +110,8 @@
 
       <section id="panel-summary" class="panel">
         <div class="panel-head">
-          <h2>╨б╨▓╨╛╨┤╨║╨░</h2>
-          <p>╨б╤А╨░╨▓╨╜╨╡╨╜╨╕╨╡ ╤Б╨║╨╗╨░╨┤╨╛╨▓ ╨╕ ╤А╨░╨╖╤А╤Л╨▓╤Л (╨Э╨╡╤В / ╨з╨░╤Б╤В╨╕╤З╨╜╨╛) ╨┤╨╗╤П ╨▒╤Г╨┤╤Г╤Й╨╕╤Е SOP.</p>
+          <h2>Сводка</h2>
+          <p>Сравнение складов и разрывы (Нет / Частично) для будущих SOP.</p>
         </div>
         <div class="table-wrap">
           <table class="data-table" id="summary-table">
@@ -119,14 +119,14 @@
             <tbody></tbody>
           </table>
         </div>
-        <h3 class="subhead">╨а╨░╨╖╤А╤Л╨▓╤Л ╨┤╨╗╤П ╤Б╤В╨░╨╜╨┤╨░╤А╤В╨╕╨╖╨░╤Ж╨╕╨╕</h3>
+        <h3 class="subhead">Разрывы для стандартизации</h3>
         <div class="stack" id="gaps-list"></div>
       </section>
     </main>
 
     <footer class="foot">
       <p>
-        ╨Ф╨░╨╜╨╜╤Л╨╡ ╤Б╨╛╤Е╤А╨░╨╜╤П╤О╤В╤Б╤П ╨▓ ╤Н╤В╨╛╨╝ ╨▒╤А╨░╤Г╨╖╨╡╤А╨╡. ╨а╨░╨▒╨╛╤З╨░╤П ╤Б╤Б╤Л╨╗╨║╨░ ╤Б╨░╨╣╤В╨░:
+        Данные сохраняются в этом браузере. Рабочая ссылка сайта:
         https://theslavok.github.io/sklad-audit/
       </p>
     </footer>

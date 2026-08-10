@@ -628,4 +628,4 @@ window.CHECKLIST_DATA = {
       "elevateIf": ""
     }
   ]
-};\n
+};
