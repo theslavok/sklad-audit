@@ -162,12 +162,51 @@ h1 {
   flex-shrink: 0;
 }
 
-#btn-add-wh,
-#btn-add-wh-bottom {
+#btn-add-wh {
   position: relative;
   z-index: 5;
   pointer-events: auto;
   cursor: pointer;
+}
+
+.history-actions {
+  margin-top: 20px;
+}
+
+.history-card {
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.history-card h3 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+}
+
+.history-card .meta {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.history-card .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.history-detail {
+  margin-top: 18px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.history-detail[hidden] {
+  display: none;
 }
 
 .card,

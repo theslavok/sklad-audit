@@ -31,6 +31,7 @@
       <button type="button" class="tab" data-tab="screening" role="tab">Пре-опрос</button>
       <button type="button" class="tab" data-tab="audit" role="tab">Обход</button>
       <button type="button" class="tab" data-tab="summary" role="tab">Сводка</button>
+      <button type="button" class="tab" data-tab="history" role="tab">История</button>
     </nav>
 
     <main>
@@ -53,7 +54,6 @@
           </label>
         </div>
         <div class="wh-list" id="warehouse-list"></div>
-        <button type="button" class="btn primary" id="btn-add-wh-bottom">Добавить склад</button>
       </section>
 
       <section id="panel-screening" class="panel">
@@ -121,6 +121,27 @@
         </div>
         <h3 class="subhead">Разрывы для стандартизации</h3>
         <div class="stack" id="gaps-list"></div>
+        <div class="history-actions">
+          <button type="button" class="btn primary" id="btn-save-history">
+            Сохранить текущий аудит в историю
+          </button>
+        </div>
+      </section>
+
+      <section id="panel-history" class="panel">
+        <div class="panel-head row-head">
+          <div>
+            <h2>История прохождения аудитов</h2>
+            <p>
+              Сохранённые результаты обходов. Можно просмотреть детали или удалить запись.
+            </p>
+          </div>
+          <button type="button" class="btn primary" id="btn-save-history-2">
+            Сохранить текущий аудит
+          </button>
+        </div>
+        <div class="stack" id="history-list"></div>
+        <div id="history-detail" class="history-detail" hidden></div>
       </section>
     </main>
 

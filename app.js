@@ -51,6 +51,7 @@ function defaultState(data) {
     warehouses,
     activeId: warehouses[0]?.id || null,
     byWarehouse,
+    history: [],
   };
 }
 
@@ -60,6 +61,7 @@ function loadState(data) {
     if (!raw) return defaultState(data);
     const parsed = JSON.parse(raw);
     if (!parsed?.warehouses?.length) return defaultState(data);
+    if (!Array.isArray(parsed.history)) parsed.history = [];
     return parsed;
   } catch {
     return defaultState(data);
@@ -129,6 +131,7 @@ function switchTab(name) {
   if (name === "screening") renderScreening();
   if (name === "audit") renderAudit();
   if (name === "summary") renderSummary();
+  if (name === "history") renderHistory();
 }
 
 function renderWarehouses() {
@@ -362,6 +365,268 @@ function renderAudit() {
   });
 }
 
+function warehouseStats(w) {
+  const { gates, answers } = whData(w.id);
+  const walk = DATA.items.filter((i) => {
+    const a = applicability(i, gates);
+    return a === "core" || a === "required" || a === "elevated";
+  });
+  const yes = walk.filter((i) => answers[i.id]?.status === "yes").length;
+  const partial = walk.filter((i) => answers[i.id]?.status === "partial").length;
+  const no = walk.filter((i) => answers[i.id]?.status === "no").length;
+  const na = walk.filter((i) => answers[i.id]?.status === "na").length;
+  const filled = walk.filter((i) => answers[i.id]?.status).length;
+  const denom = yes + partial + no;
+  const pct = denom ? Math.round((yes / denom) * 100) : null;
+  const gaps = [];
+  walk.forEach((item) => {
+    const st = answers[item.id]?.status;
+    if (st !== "no" && st !== "partial") return;
+    gaps.push({
+      warehouseName: w.name,
+      section: item.section,
+      status: st,
+      text: item.text,
+      comment: answers[item.id]?.comment || "",
+    });
+  });
+  return {
+    warehouseId: w.id,
+    warehouseName: w.name,
+    yes,
+    partial,
+    no,
+    na,
+    filled,
+    total: walk.length,
+    pct,
+    gaps,
+  };
+}
+
+function buildHistoryEntry() {
+  const results = state.warehouses.map((w) => warehouseStats(w));
+  const gaps = results.flatMap((r) => r.gaps);
+  const answered = results.reduce((s, r) => s + r.filled, 0);
+  return {
+    id: uid(),
+    savedAt: new Date().toISOString(),
+    meta: {
+      auditor: state.meta.auditor || "",
+      date: state.meta.date || "",
+    },
+    warehouseCount: state.warehouses.length,
+    answered,
+    results: results.map((r) => ({
+      warehouseName: r.warehouseName,
+      yes: r.yes,
+      partial: r.partial,
+      no: r.no,
+      na: r.na,
+      filled: r.filled,
+      total: r.total,
+      pct: r.pct,
+    })),
+    gaps,
+    snapshot: {
+      meta: JSON.parse(JSON.stringify(state.meta)),
+      warehouses: JSON.parse(JSON.stringify(state.warehouses)),
+      activeId: state.activeId,
+      byWarehouse: JSON.parse(JSON.stringify(state.byWarehouse)),
+    },
+  };
+}
+
+function saveCurrentAuditToHistory() {
+  if (!Array.isArray(state.history)) state.history = [];
+  const entry = buildHistoryEntry();
+  if (entry.answered === 0) {
+    const ok = confirm(
+      "По текущему аудиту почти нет заполненных оценок. Всё равно сохранить в историю?"
+    );
+    if (!ok) return;
+  }
+  state.history.unshift(entry);
+  saveState();
+  alert("Аудит сохранён в историю.");
+  switchTab("history");
+}
+
+function deleteHistoryEntry(id) {
+  if (!confirm("Удалить эту запись из истории?")) return;
+  state.history = (state.history || []).filter((h) => h.id !== id);
+  saveState();
+  const detail = $("#history-detail");
+  if (detail) {
+    detail.hidden = true;
+    detail.innerHTML = "";
+  }
+  renderHistory();
+}
+
+function restoreHistoryEntry(id) {
+  const entry = (state.history || []).find((h) => h.id === id);
+  if (!entry || !entry.snapshot) {
+    alert("В этой записи нет полного снимка для восстановления.");
+    return;
+  }
+  if (
+    !confirm(
+      "Загрузить этот аудит в рабочую область? Текущие незаписанные ответы будут заменены."
+    )
+  ) {
+    return;
+  }
+  state.meta = JSON.parse(JSON.stringify(entry.snapshot.meta));
+  state.warehouses = JSON.parse(JSON.stringify(entry.snapshot.warehouses));
+  state.activeId = entry.snapshot.activeId;
+  state.byWarehouse = JSON.parse(JSON.stringify(entry.snapshot.byWarehouse));
+  saveState();
+  renderWarehouses();
+  updateWhLabels();
+  switchTab("summary");
+}
+
+function formatSavedAt(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("ru-RU", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso || "—";
+  }
+}
+
+function showHistoryDetail(id) {
+  const entry = (state.history || []).find((h) => h.id === id);
+  const host = $("#history-detail");
+  if (!entry || !host) return;
+  host.hidden = false;
+  host.innerHTML = "";
+  host.append(
+    el("h3", {
+      className: "subhead",
+      text: `Детали: ${entry.meta.date || "без даты"} · ${entry.meta.auditor || "аудитор не указан"}`,
+    }),
+    el("p", {
+      className: "meta",
+      text: `Сохранено: ${formatSavedAt(entry.savedAt)} · складов: ${entry.warehouseCount} · ответов: ${entry.answered}`,
+    })
+  );
+
+  const tableWrap = el("div", { className: "table-wrap" });
+  const table = el("table", { className: "data-table" });
+  const thead = el("thead");
+  const headRow = el("tr");
+  ["Склад", "Да", "Частично", "Нет", "Н/п", "Заполнено", "% Да"].forEach((h) =>
+    headRow.append(el("th", { text: h }))
+  );
+  thead.append(headRow);
+  const tbody = el("tbody");
+  (entry.results || []).forEach((r) => {
+    const tr = el("tr");
+    [
+      r.warehouseName,
+      r.yes,
+      r.partial,
+      r.no,
+      r.na,
+      `${r.filled}/${r.total}`,
+      r.pct == null ? "—" : `${r.pct}%`,
+    ].forEach((v) => tr.append(el("td", { text: String(v) })));
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+  tableWrap.append(table);
+  host.append(tableWrap);
+
+  host.append(el("h3", { className: "subhead", text: "Разрывы" }));
+  const gaps = entry.gaps || [];
+  if (!gaps.length) {
+    host.append(el("p", { className: "meta", text: "Разрывов не зафиксировано." }));
+  } else {
+    const stack = el("div", { className: "stack" });
+    gaps.forEach((g) => {
+      const gap = el("div", { className: `gap${g.status === "partial" ? " partial" : ""}` });
+      gap.append(
+        el("div", {
+          className: "where",
+          text: `${g.warehouseName} · ${g.section} · ${STATUS_LABEL[g.status] || g.status}`,
+        }),
+        el("div", { text: g.text })
+      );
+      if (g.comment) gap.append(el("p", { className: "meta", text: g.comment }));
+      stack.append(gap);
+    });
+    host.append(stack);
+  }
+}
+
+function renderHistory() {
+  if (!Array.isArray(state.history)) state.history = [];
+  const list = $("#history-list");
+  if (!list) return;
+  list.innerHTML = "";
+
+  if (!state.history.length) {
+    list.append(
+      el("p", {
+        className: "meta",
+        text: "История пуста. Заполните обход и нажмите «Сохранить текущий аудит в историю» на вкладке «Сводка».",
+      })
+    );
+    const detail = $("#history-detail");
+    if (detail) {
+      detail.hidden = true;
+      detail.innerHTML = "";
+    }
+    return;
+  }
+
+  state.history.forEach((entry) => {
+    const card = el("div", { className: "history-card" });
+    const title = `${entry.meta.date || "Дата не указана"} · ${entry.meta.auditor || "Аудитор не указан"}`;
+    const yesTotal = (entry.results || []).reduce((s, r) => s + (r.yes || 0), 0);
+    const noTotal = (entry.results || []).reduce((s, r) => s + (r.no || 0), 0);
+    const partialTotal = (entry.results || []).reduce((s, r) => s + (r.partial || 0), 0);
+    card.append(
+      el("h3", { text: title }),
+      el("p", {
+        className: "meta",
+        text: `Сохранено: ${formatSavedAt(entry.savedAt)} · складов: ${entry.warehouseCount} · заполнено оценок: ${entry.answered} · Да: ${yesTotal} · Частично: ${partialTotal} · Нет: ${noTotal} · разрывов: ${(entry.gaps || []).length}`,
+      })
+    );
+    const actions = el("div", { className: "actions" });
+    actions.append(
+      el("button", {
+        type: "button",
+        className: "btn ghost",
+        text: "Открыть",
+        onClick: () => showHistoryDetail(entry.id),
+      }),
+      el("button", {
+        type: "button",
+        className: "btn ghost",
+        text: "Загрузить в работу",
+        onClick: () => restoreHistoryEntry(entry.id),
+      }),
+      el("button", {
+        type: "button",
+        className: "btn danger-ghost",
+        text: "Удалить",
+        onClick: () => deleteHistoryEntry(entry.id),
+      })
+    );
+    card.append(actions);
+    list.append(card);
+  });
+}
+
 function renderSummary() {
   const thead = $("#summary-table thead");
   const tbody = $("#summary-table tbody");
@@ -377,41 +642,40 @@ function renderSummary() {
   gapsHost.innerHTML = "";
 
   state.warehouses.forEach((w) => {
-    const { gates, answers } = whData(w.id);
-    const walk = DATA.items.filter((i) => {
-      const a = applicability(i, gates);
-      return a === "core" || a === "required" || a === "elevated";
-    });
-    const yes = walk.filter((i) => answers[i.id]?.status === "yes").length;
-    const partial = walk.filter((i) => answers[i.id]?.status === "partial").length;
-    const no = walk.filter((i) => answers[i.id]?.status === "no").length;
-    const na = walk.filter((i) => answers[i.id]?.status === "na").length;
-    const filled = walk.filter((i) => answers[i.id]?.status).length;
-    const denom = yes + partial + no;
-    const pct = denom ? `${Math.round((yes / denom) * 100)}%` : "—";
+    const stats = warehouseStats(w);
     const tr = el("tr");
-    [w.name, yes, partial, no, na, `${filled}/${walk.length}`, pct].forEach((v) =>
-      tr.append(el("td", { text: String(v) }))
-    );
+    [
+      stats.warehouseName,
+      stats.yes,
+      stats.partial,
+      stats.no,
+      stats.na,
+      `${stats.filled}/${stats.total}`,
+      stats.pct == null ? "—" : `${stats.pct}%`,
+    ].forEach((v) => tr.append(el("td", { text: String(v) })));
     tbody.append(tr);
 
-    walk.forEach((item) => {
-      const st = answers[item.id]?.status;
-      if (st !== "no" && st !== "partial") return;
-      const gap = el("div", { className: `gap${st === "partial" ? " partial" : ""}` });
+    stats.gaps.forEach((g) => {
+      const gap = el("div", { className: `gap${g.status === "partial" ? " partial" : ""}` });
       gap.append(
-        el("div", { className: "where", text: `${w.name} · ${item.section} · ${STATUS_LABEL[st]}` }),
-        el("div", { text: item.text })
+        el("div", {
+          className: "where",
+          text: `${g.warehouseName} · ${g.section} · ${STATUS_LABEL[g.status]}`,
+        }),
+        el("div", { text: g.text })
       );
-      if (answers[item.id]?.comment) {
-        gap.append(el("p", { className: "meta", text: answers[item.id].comment }));
-      }
+      if (g.comment) gap.append(el("p", { className: "meta", text: g.comment }));
       gapsHost.append(gap);
     });
   });
 
   if (!gapsHost.children.length) {
-    gapsHost.append(el("p", { className: "meta", text: "Пока нет оценок «Нет» / «Частично» среди активных пунктов." }));
+    gapsHost.append(
+      el("p", {
+        className: "meta",
+        text: "Пока нет оценок «Нет» / «Частично» среди активных пунктов.",
+      })
+    );
   }
 }
 
@@ -496,6 +760,7 @@ function importBackup(file) {
       const parsed = JSON.parse(String(reader.result));
       const next = parsed.state || parsed;
       if (!next.warehouses || !next.byWarehouse) throw new Error("bad format");
+      if (!Array.isArray(next.history)) next.history = [];
       state = next;
       saveState();
       renderWarehouses();
@@ -536,7 +801,7 @@ function bind() {
   document.addEventListener("click", (e) => {
     const t = e.target;
     if (!t || !t.closest) return;
-    const btn = t.closest("#btn-add-wh, #btn-add-wh-bottom");
+    const btn = t.closest("#btn-add-wh");
     if (!btn) return;
     e.preventDefault();
     addWarehouse();
@@ -553,6 +818,12 @@ function bind() {
     if (file) importBackup(file);
     e.target.value = "";
   });
+
+  const saveBtns = ["#btn-save-history", "#btn-save-history-2"];
+  saveBtns.forEach((sel) => {
+    const node = $(sel);
+    if (node) node.addEventListener("click", saveCurrentAuditToHistory);
+  });
 }
 
 function boot() {
@@ -567,6 +838,7 @@ function boot() {
     if (!state.warehouses || !state.warehouses.length) {
       state = defaultState(DATA);
     }
+    if (!Array.isArray(state.history)) state.history = [];
     if (!state.activeId && state.warehouses[0]) {
       state.activeId = state.warehouses[0].id;
     }
