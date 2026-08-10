@@ -31,11 +31,12 @@
   }
 
   function rowToEntry(row) {
+    if (!row) return null;
     const payload = row.payload || {};
     return Object.assign({}, payload, {
       id: payload.id || row.id,
       cloudId: row.id,
-      shareCode: row.share_code,
+      shareCode: row.share_code || payload.shareCode || "",
       savedAt: payload.savedAt || row.created_at,
       meta: payload.meta || { auditor: row.auditor || "", date: row.audit_date || "" },
     });
@@ -43,7 +44,7 @@
 
   async function cloudSaveAudit(entry) {
     if (!isCloudConfigured()) throw new Error("cloud_not_configured");
-    const code = entry.shareCode || shareCode();
+    const code = String(entry.shareCode || shareCode()).toUpperCase();
     const body = {
       share_code: code,
       auditor: (entry.meta && entry.meta.auditor) || "",
@@ -59,9 +60,19 @@
       const text = await res.text();
       throw new Error("cloud_save_failed: " + res.status + " " + text);
     }
-    const rows = await res.json();
-    const row = Array.isArray(rows) ? rows[0] : rows;
-    return rowToEntry(row);
+    let row = null;
+    try {
+      const rows = await res.json();
+      row = Array.isArray(rows) ? rows[0] : rows;
+    } catch {
+      row = null;
+    }
+    const mapped = rowToEntry(row);
+    if (mapped) {
+      mapped.shareCode = mapped.shareCode || code;
+      return mapped;
+    }
+    return Object.assign({}, entry, { shareCode: code, cloudId: null });
   }
 
   async function cloudListAudits(limit) {
@@ -73,7 +84,7 @@
     const res = await fetch(url, { headers: headers() });
     if (!res.ok) throw new Error("cloud_list_failed: " + res.status);
     const rows = await res.json();
-    return (rows || []).map(rowToEntry);
+    return (rows || []).map(rowToEntry).filter(Boolean);
   }
 
   async function cloudGetByCode(code) {

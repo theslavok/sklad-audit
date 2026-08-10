@@ -260,10 +260,26 @@ h1 {
 
 .share-box {
   margin-top: 12px;
-  padding: 12px;
+  margin-bottom: 12px;
+  padding: 14px 16px;
   background: var(--accent-soft);
   border-radius: 8px;
   word-break: break-all;
+}
+
+.share-box .share-code {
+  margin: 8px 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  word-break: normal;
+}
+
+.share-box .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .card,

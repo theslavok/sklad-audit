@@ -530,10 +530,15 @@ async function saveCurrentAuditToHistory() {
     if (!ok) return;
   }
 
+  const plannedCode = cloudReady() ? window.AuditCloud.shareCode() : "";
+  if (plannedCode) entry.shareCode = plannedCode;
+
   let saved = entry;
+  let cloudOk = false;
   if (cloudReady()) {
     try {
       saved = await window.AuditCloud.cloudSaveAudit(entry);
+      cloudOk = true;
     } catch (err) {
       console.error(err);
       const localOk = confirm(
@@ -543,28 +548,73 @@ async function saveCurrentAuditToHistory() {
     }
   }
 
-  const local = getLocalHistory().filter((h) => h.id !== saved.id);
+  const code = (saved && saved.shareCode) || plannedCode || "";
+  if (code) saved.shareCode = code;
+
+  const local = getLocalHistory().filter((h) => h.id !== saved.id && h.shareCode !== saved.shareCode);
   local.unshift(saved);
   saveLocalHistory(local);
   state.history = local;
-  lastShareInfo = saved.shareCode
-    ? { code: saved.shareCode, url: window.AuditCloud.shareUrl(saved.shareCode) }
-    : null;
 
-  if (lastShareInfo) {
-    alert(
-      "Аудит сохранён и доступен команде.\n\nКод: " +
-        lastShareInfo.code +
-        "\nСсылка:\n" +
-        lastShareInfo.url
-    );
+  if (cloudOk && code) {
+    lastShareInfo = { code: code, url: window.AuditCloud.shareUrl(code) };
   } else {
-    alert(
-      "Аудит сохранён на этом устройстве.\nЧтобы делиться ссылкой с другими, настройте облако — см. SETUP-CLOUD.md"
-    );
+    lastShareInfo = null;
   }
-  switchTab("history");
-  renderSummaryShareHint();
+
+  switchTab("summary");
+  renderShareBoxes();
+  if (lastShareInfo) {
+    const box = $("#summary-share");
+    if (box) box.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function renderShareBoxes() {
+  renderShareInto("#summary-share");
+  renderShareInto("#history-share");
+}
+
+function renderShareInto(sel) {
+  const host = $(sel);
+  if (!host) return;
+  host.innerHTML = "";
+  if (!lastShareInfo) return;
+  const box = el("div", { className: "share-box" });
+  box.append(
+    el("p", { text: "Аудит сохранён. Код для команды:" }),
+    el("p", { className: "share-code", text: lastShareInfo.code }),
+    el("p", { className: "meta", text: lastShareInfo.url }),
+    el("div", { className: "actions" }, [
+      el("button", {
+        type: "button",
+        className: "btn primary",
+        text: "Копировать ссылку",
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(lastShareInfo.url);
+            alert("Ссылка скопирована");
+          } catch {
+            prompt("Скопируйте ссылку:", lastShareInfo.url);
+          }
+        },
+      }),
+      el("button", {
+        type: "button",
+        className: "btn ghost",
+        text: "Копировать код",
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(lastShareInfo.code);
+            alert("Код скопирован");
+          } catch {
+            prompt("Скопируйте код:", lastShareInfo.code);
+          }
+        },
+      }),
+    ])
+  );
+  host.append(box);
 }
 
 async function deleteHistoryEntry(id) {
@@ -745,6 +795,7 @@ async function renderHistory() {
 
   state.history = entries;
   list.innerHTML = "";
+  renderShareInto("#history-share");
 
   if (!entries.length) {
     list.append(
@@ -804,17 +855,7 @@ async function renderHistory() {
 }
 
 function renderSummaryShareHint() {
-  const host = $("#summary-share");
-  if (!host) return;
-  host.innerHTML = "";
-  if (!lastShareInfo) return;
-  const box = el("div", { className: "share-box" });
-  box.append(
-    el("p", { text: "Ссылка для участников:" }),
-    el("p", { className: "meta", text: lastShareInfo.url }),
-    el("p", { className: "meta", text: `Код: ${lastShareInfo.code}` })
-  );
-  host.append(box);
+  renderShareBoxes();
 }
 
 function renderSummary() {
