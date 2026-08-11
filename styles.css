@@ -67,6 +67,19 @@ main,
   flex-wrap: wrap;
 }
 
+@media (max-width: 480px) {
+  .top,
+  .tabs,
+  main,
+  .foot {
+    width: calc(100% - 20px);
+  }
+
+  .top {
+    padding: 20px 0 14px;
+  }
+}
+
 .brand-mark {
   margin: 0 0 6px;
   font-size: 0.85rem;
@@ -97,10 +110,28 @@ h1 {
   gap: 8px;
 }
 
+@media (max-width: 640px) {
+  .top-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .top-actions .btn,
+  .top-actions .file-btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
 .tabs {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
   margin-bottom: 18px;
   padding: 6px;
   background: rgba(247, 250, 247, 0.85);
@@ -109,6 +140,7 @@ h1 {
 }
 
 .tab {
+  flex: 0 0 auto;
   border: 0;
   background: transparent;
   color: var(--ink-soft);
@@ -117,6 +149,7 @@ h1 {
   padding: 10px 16px;
   border-radius: 999px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .tab.active {
@@ -160,6 +193,18 @@ h1 {
   position: relative;
   z-index: 5;
   flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .row-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .row-head .btn {
+    width: 100%;
+    text-align: center;
+  }
 }
 
 #btn-add-wh {
@@ -232,6 +277,18 @@ h1 {
   border-radius: 16px;
   padding: 28px 24px;
   box-shadow: var(--shadow);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+@media (max-width: 480px) {
+  .welcome {
+    padding: 12px;
+  }
+
+  .welcome-card {
+    padding: 20px 16px;
+  }
 }
 
 .welcome-card h1 {
@@ -323,11 +380,13 @@ input[type="date"],
 select,
 textarea {
   font: inherit;
+  font-size: 16px;
   color: var(--ink);
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
+  min-height: 44px;
 }
 
 textarea {
@@ -342,6 +401,10 @@ textarea {
   padding: 10px 14px;
   cursor: pointer;
   border: 1px solid transparent;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn.primary {
@@ -395,6 +458,19 @@ textarea {
 .wh-row .hint {
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+@media (max-width: 480px) {
+  .wh-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wh-row select,
+  .wh-row .btn {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 .stack {
@@ -557,6 +633,14 @@ textarea {
   border-bottom: 1px solid var(--line);
   text-align: left;
   white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .data-table th,
+  .data-table td {
+    padding: 8px 10px;
+    font-size: 0.85rem;
+  }
 }
 
 .data-table th {

@@ -341,8 +341,7 @@ function renderScreening() {
     const item = el("div", { className: "item" });
     item.append(
       el("h3", { text: q.text }),
-      q.explain ? el("p", { className: "explain", text: q.explain }) : null,
-      el("p", { className: "meta", text: `Влияет на состав обхода: ${q.affects}` })
+      q.explain ? el("p", { className: "explain", text: q.explain }) : null
     );
     const select = el("select");
     [
