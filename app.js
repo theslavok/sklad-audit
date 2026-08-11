@@ -28,6 +28,75 @@ let bound = false;
 let lastShareInfo = null;
 let historyLoaded = false;
 let historyLoading = false;
+/** When an audit is opened/restored/just saved, skip it for «Было» dynamics. */
+let dynamicsExclude = { id: null, shareCode: null, cloudId: null };
+
+function setDynamicsExclude(entry) {
+  dynamicsExclude = {
+    id: entry?.id || null,
+    shareCode: entry?.shareCode ? String(entry.shareCode).toUpperCase() : null,
+    cloudId: entry?.cloudId || null,
+  };
+}
+
+function clearDynamicsExclude() {
+  dynamicsExclude = { id: null, shareCode: null, cloudId: null };
+}
+
+function isExcludedHistoryEntry(entry) {
+  if (!entry) return false;
+  if (dynamicsExclude.id && entry.id === dynamicsExclude.id) return true;
+  if (dynamicsExclude.cloudId && entry.cloudId && entry.cloudId === dynamicsExclude.cloudId) return true;
+  if (
+    dynamicsExclude.shareCode &&
+    entry.shareCode &&
+    String(entry.shareCode).toUpperCase() === dynamicsExclude.shareCode
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function historyEntryKey(entry) {
+  if (!entry) return null;
+  if (entry.cloudId) return `c:${entry.cloudId}`;
+  if (entry.shareCode) return `s:${String(entry.shareCode).toUpperCase()}`;
+  if (entry.id) return `i:${entry.id}`;
+  return null;
+}
+
+function mergeCloudAndLocalHistory(cloudEntries) {
+  const cloud = Array.isArray(cloudEntries) ? cloudEntries : [];
+  const local = getLocalHistory();
+  const seen = new Set();
+  const merged = [];
+  for (const entry of cloud) {
+    const key = historyEntryKey(entry);
+    if (key) seen.add(key);
+    merged.push(entry);
+  }
+  for (const entry of local) {
+    const key = historyEntryKey(entry);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    merged.push(entry);
+  }
+  merged.sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
+  return merged;
+}
+
+function upsertLocalHistory(saved) {
+  const code = saved?.shareCode ? String(saved.shareCode).toUpperCase() : "";
+  const next = getLocalHistory().filter((h) => {
+    if (saved.id && h.id === saved.id) return false;
+    if (saved.cloudId && h.cloudId && h.cloudId === saved.cloudId) return false;
+    if (code && h.shareCode && String(h.shareCode).toUpperCase() === code) return false;
+    return true;
+  });
+  next.unshift(saved);
+  saveLocalHistory(next);
+  return next;
+}
 
 function uid() {
   return `wh_${Math.random().toString(36).slice(2, 9)}`;
@@ -174,7 +243,8 @@ async function primeHistoryForDynamics() {
     let entries = getLocalHistory();
     if (cloudReady()) {
       try {
-        entries = await window.AuditCloud.cloudListAudits(50);
+        const cloud = await window.AuditCloud.cloudListAudits(50);
+        entries = mergeCloudAndLocalHistory(cloud);
         saveLocalHistory(entries);
       } catch (err) {
         console.error(err);
@@ -193,6 +263,7 @@ function findPreviousAuditForWarehouse(name) {
   if (!target) return null;
   const list = Array.isArray(state.history) ? state.history : [];
   for (const entry of list) {
+    if (isExcludedHistoryEntry(entry)) continue;
     const snap = entry && entry.snapshot;
     if (!snap || !Array.isArray(snap.warehouses)) continue;
     const wh = snap.warehouses.find((w) => String(w.name || "").trim().toLowerCase() === target);
@@ -288,7 +359,13 @@ function renderWarehouses() {
       input.append(o);
     });
     input.addEventListener("change", () => {
-      w.name = input.value;
+      const next = input.value;
+      if (state.warehouses.some((x) => x.id !== w.id && x.name === next)) {
+        alert("Такой склад уже есть в списке.");
+        input.value = w.name;
+        return;
+      }
+      w.name = next;
       saveState();
       updateWhLabels();
     });
@@ -642,10 +719,8 @@ async function saveCurrentAuditToHistory() {
   const code = (saved && saved.shareCode) || plannedCode || "";
   if (code) saved.shareCode = code;
 
-  const local = getLocalHistory().filter((h) => h.id !== saved.id && h.shareCode !== saved.shareCode);
-  local.unshift(saved);
-  saveLocalHistory(local);
-  state.history = local;
+  state.history = upsertLocalHistory(saved);
+  setDynamicsExclude(saved);
 
   if (cloudOk && code) {
     lastShareInfo = { code: code, url: window.AuditCloud.shareUrl(code) };
@@ -711,28 +786,43 @@ function renderShareInto(sel) {
 async function deleteHistoryEntry(id) {
   if (!confirm("Удалить эту запись из истории?")) return;
   const entry = (state.history || []).find((h) => h.id === id);
-  if (entry && entry.cloudId && cloudReady()) {
-    const password = prompt("Введите пароль администратора для удаления из общей истории:");
-    if (password == null) return;
-    if (!String(password).trim()) {
-      alert("Пароль не введён — удаление отменено.");
-      return;
-    }
-    try {
-      await window.AuditCloud.cloudDelete(entry.cloudId, password.trim());
-    } catch (err) {
-      console.error(err);
-      if (err && err.message === "bad_password") {
-        alert("Неверный пароль. Запись в облаке не удалена.");
-      } else {
-        alert("Не удалось удалить из облака. Проверьте, что в Supabase настроена защита удаления (см. SETUP-CLOUD.md).");
+  if (entry && cloudReady()) {
+    let cloudId = entry.cloudId;
+    if (!cloudId && entry.shareCode) {
+      try {
+        const remote = await window.AuditCloud.cloudGetByCode(entry.shareCode);
+        cloudId = remote && remote.cloudId;
+        if (cloudId) entry.cloudId = cloudId;
+      } catch (err) {
+        console.error(err);
       }
-      return;
+    }
+    if (cloudId) {
+      const password = prompt("Введите пароль администратора для удаления из общей истории:");
+      if (password == null) return;
+      if (!String(password).trim()) {
+        alert("Пароль не введён — удаление отменено.");
+        return;
+      }
+      try {
+        await window.AuditCloud.cloudDelete(cloudId, password.trim());
+      } catch (err) {
+        console.error(err);
+        if (err && err.message === "bad_password") {
+          alert("Неверный пароль. Запись в облаке не удалена.");
+        } else {
+          alert(
+            "Не удалось удалить из облака. Проверьте, что в Supabase настроена защита удаления (см. SETUP-CLOUD.md)."
+          );
+        }
+        return;
+      }
     }
   }
   const next = getLocalHistory().filter((h) => h.id !== id);
   saveLocalHistory(next);
   state.history = (state.history || []).filter((h) => h.id !== id);
+  if (isExcludedHistoryEntry(entry)) clearDynamicsExclude();
   const detail = $("#history-detail");
   if (detail) {
     detail.hidden = true;
@@ -755,6 +845,7 @@ function restoreHistoryEntry(id) {
     return;
   }
   applySnapshot(entry.snapshot);
+  setDynamicsExclude(entry);
   switchTab("summary");
 }
 
@@ -880,7 +971,8 @@ async function renderHistory() {
   let entries = getLocalHistory();
   if (cloudReady()) {
     try {
-      entries = await window.AuditCloud.cloudListAudits(50);
+      const cloud = await window.AuditCloud.cloudListAudits(50);
+      entries = mergeCloudAndLocalHistory(cloud);
       saveLocalHistory(entries);
     } catch (err) {
       console.error(err);
@@ -1118,7 +1210,11 @@ function importBackup(file) {
 function addWarehouse() {
   const used = new Set(state.warehouses.map((x) => x.name));
   const options = DATA.warehouses && DATA.warehouses.length ? DATA.warehouses : [];
-  const nextName = options.find((name) => !used.has(name)) || `Склад ${state.warehouses.length + 1}`;
+  const nextName = options.find((name) => !used.has(name));
+  if (!nextName) {
+    alert("Оба склада уже добавлены. Удалять и дублировать названия не нужно — переключайте активный.");
+    return;
+  }
   const w = { id: uid(), name: nextName };
   state.warehouses.push(w);
   state.byWarehouse[w.id] = emptyWarehouseState();
@@ -1157,6 +1253,7 @@ function enterApp(tab) {
 
 function startNewAudit() {
   lastShareInfo = null;
+  clearDynamicsExclude();
   state = defaultState(DATA);
   state.history = getLocalHistory();
   clearDraftStorage();
@@ -1174,6 +1271,7 @@ function openNewAuditWindow() {
 
 function continueDraft() {
   lastShareInfo = null;
+  clearDynamicsExclude();
   state = loadDraftState(DATA);
   enterApp("setup");
 }
@@ -1199,6 +1297,7 @@ async function openSharedAudit(code) {
     state = defaultState(DATA);
     state.history = getLocalHistory();
     applySnapshot(entry.snapshot);
+    setDynamicsExclude(entry);
     lastShareInfo = { code: entry.shareCode || clean, url: window.AuditCloud.shareUrl(entry.shareCode || clean) };
     enterApp("summary");
     alert("Открыт общий аудит " + (entry.shareCode || clean));

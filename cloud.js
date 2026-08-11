@@ -102,7 +102,8 @@
   }
 
   async function cloudDelete(cloudId, password) {
-    if (!isCloudConfigured() || !cloudId) return;
+    if (!isCloudConfigured()) throw new Error("cloud_not_configured");
+    if (!cloudId) throw new Error("cloud_id_missing");
     const c = cfg();
     const url = String(c.supabaseUrl || "").replace(/\/$/, "") + "/rest/v1/rpc/delete_audit";
     const res = await fetch(url, {
