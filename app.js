@@ -712,11 +712,21 @@ async function deleteHistoryEntry(id) {
   if (!confirm("Удалить эту запись из истории?")) return;
   const entry = (state.history || []).find((h) => h.id === id);
   if (entry && entry.cloudId && cloudReady()) {
+    const password = prompt("Введите пароль администратора для удаления из общей истории:");
+    if (password == null) return;
+    if (!String(password).trim()) {
+      alert("Пароль не введён — удаление отменено.");
+      return;
+    }
     try {
-      await window.AuditCloud.cloudDelete(entry.cloudId);
+      await window.AuditCloud.cloudDelete(entry.cloudId, password.trim());
     } catch (err) {
       console.error(err);
-      alert("Не удалось удалить из облака.");
+      if (err && err.message === "bad_password") {
+        alert("Неверный пароль. Запись в облаке не удалена.");
+      } else {
+        alert("Не удалось удалить из облака. Проверьте, что в Supabase настроена защита удаления (см. SETUP-CLOUD.md).");
+      }
       return;
     }
   }

@@ -101,11 +101,25 @@
     return rowToEntry(rows[0]);
   }
 
-  async function cloudDelete(cloudId) {
+  async function cloudDelete(cloudId, password) {
     if (!isCloudConfigured() || !cloudId) return;
-    const url = baseUrl() + "?id=eq." + encodeURIComponent(cloudId);
-    const res = await fetch(url, { method: "DELETE", headers: headers() });
-    if (!res.ok) throw new Error("cloud_delete_failed: " + res.status);
+    const c = cfg();
+    const url = String(c.supabaseUrl || "").replace(/\/$/, "") + "/rest/v1/rpc/delete_audit";
+    const res = await fetch(url, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        p_id: cloudId,
+        p_password: String(password || ""),
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      if (/неверн|forbidden|password|парол/i.test(text) || res.status === 400 || res.status === 403) {
+        throw new Error("bad_password");
+      }
+      throw new Error("cloud_delete_failed: " + res.status + " " + text);
+    }
   }
 
   function shareUrl(code) {
