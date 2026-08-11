@@ -26,6 +26,8 @@ let DATA = null;
 let state = null;
 let bound = false;
 let lastShareInfo = null;
+let historyLoaded = false;
+let historyLoading = false;
 
 function uid() {
   return `wh_${Math.random().toString(36).slice(2, 9)}`;
@@ -161,6 +163,53 @@ function clearDraftStorage() {
 
 function cloudReady() {
   return Boolean(window.AuditCloud && window.AuditCloud.isCloudConfigured());
+}
+
+function activeTabName() {
+  return document.querySelector(".tab.active")?.dataset.tab || "";
+}
+
+async function primeHistoryForDynamics() {
+  if (historyLoaded || historyLoading) return;
+  historyLoading = true;
+  try {
+    let entries = getLocalHistory();
+    if (cloudReady()) {
+      try {
+        entries = await window.AuditCloud.cloudListAudits(50);
+        saveLocalHistory(entries);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    state.history = entries;
+    historyLoaded = true;
+    if (activeTabName() === "audit") renderAudit();
+  } finally {
+    historyLoading = false;
+  }
+}
+
+function findPreviousAuditForWarehouse(name) {
+  const target = String(name || "").trim().toLowerCase();
+  if (!target) return null;
+  const list = Array.isArray(state.history) ? state.history : [];
+  for (const entry of list) {
+    const snap = entry && entry.snapshot;
+    if (!snap || !Array.isArray(snap.warehouses)) continue;
+    const wh = snap.warehouses.find((w) => String(w.name || "").trim().toLowerCase() === target);
+    if (wh) return { entry, whId: wh.id };
+  }
+  return null;
+}
+
+function previousAnswerFor(prevAudit, itemId) {
+  if (!prevAudit) return null;
+  const byWh = prevAudit.entry.snapshot.byWarehouse || {};
+  const wh = byWh[prevAudit.whId];
+  const ans = wh && wh.answers && wh.answers[itemId];
+  if (!ans || !ans.status) return null;
+  return ans;
 }
 
 function activeWh() {
@@ -345,6 +394,7 @@ function renderAudit() {
   updateWhLabels();
   fillSectionFilter();
   const { gates, answers } = whData();
+  const prevAudit = findPreviousAuditForWarehouse(activeWh()?.name);
   const section = $("#filter-section").value;
   const priority = $("#filter-priority").value;
   const scope = $("#filter-scope").value;
@@ -386,6 +436,28 @@ function renderAudit() {
     );
   });
 
+  const dynamicsNote = $("#audit-dynamics-note");
+  if (dynamicsNote) {
+    dynamicsNote.innerHTML = "";
+    if (!historyLoaded) {
+      dynamicsNote.append(el("p", { className: "meta", text: "Загрузка данных прошлых аудитов…" }));
+    } else if (prevAudit) {
+      dynamicsNote.append(
+        el("p", {
+          className: "meta",
+          text: `Показан прошлый результат этого склада: ${formatSavedAt(prevAudit.entry.savedAt)}. Сверяйте свой ответ с ним, чтобы видеть, где стало лучше или хуже.`,
+        })
+      );
+    } else {
+      dynamicsNote.append(
+        el("p", {
+          className: "meta",
+          text: "Прошлых сохранённых аудитов для этого склада не найдено — это первый обход (или название склада изменилось).",
+        })
+      );
+    }
+  }
+
   const list = $("#audit-list");
   list.innerHTML = "";
   let currentSection = null;
@@ -396,6 +468,7 @@ function renderAudit() {
     }
     const app = applicability(item, gates);
     const ans = answers[item.id] || { status: "", comment: "" };
+    const prevAns = previousAnswerFor(prevAudit, item.id);
     const card = el("div", {
       className: `item${app === "elevated" ? " elevated" : ""}${app === "na" ? " na" : ""}`,
     });
@@ -411,6 +484,15 @@ function renderAudit() {
       .map((x) => x.trim())
       .filter(Boolean)
       .forEach((p) => top.append(el("span", { className: "pill", text: p })));
+    if (prevAns) {
+      top.append(
+        el("span", {
+          className: `pill prev-answer prev-${prevAns.status}`,
+          text: `Было: ${STATUS_LABEL[prevAns.status] || prevAns.status}`,
+          title: prevAns.comment ? `Комментарий в прошлый раз: ${prevAns.comment}` : "",
+        })
+      );
+    }
     card.append(top, el("h3", { text: item.text }));
     if (item.explain) card.append(el("p", { className: "explain", text: item.explain }));
     if (item.hint) card.append(el("p", { className: "meta", text: item.hint }));
@@ -1056,6 +1138,7 @@ function enterApp(tab) {
   renderWarehouses();
   updateWhLabels();
   switchTab(tab || "setup");
+  primeHistoryForDynamics();
 }
 
 function startNewAudit() {

@@ -448,6 +448,31 @@ textarea {
   color: var(--elevated);
 }
 
+.pill.prev-answer {
+  margin-left: auto;
+  font-weight: 500;
+}
+
+.pill.prev-yes {
+  background: #dff3e3;
+  color: #1f7a3f;
+}
+
+.pill.prev-partial {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.pill.prev-no {
+  background: #fbdede;
+  color: #b3261e;
+}
+
+.pill.prev-na {
+  background: var(--bg-deep);
+  color: var(--ink-soft);
+}
+
 .item h3 {
   margin: 0 0 6px;
   font-size: 1rem;
