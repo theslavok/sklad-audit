@@ -1228,9 +1228,9 @@ function bind() {
     const node = $(`#${id}`);
     if (node) node.addEventListener("change", renderAudit);
   });
-  $("#btn-export").addEventListener("click", exportCsv);
-  $("#btn-backup").addEventListener("click", exportBackup);
-  $("#import-json").addEventListener("change", (e) => {
+  $("#btn-export")?.addEventListener("click", exportCsv);
+  $("#btn-backup")?.addEventListener("click", exportBackup);
+  $("#import-json")?.addEventListener("change", (e) => {
     const file = e.target.files?.[0];
     if (file) importBackup(file);
     e.target.value = "";
