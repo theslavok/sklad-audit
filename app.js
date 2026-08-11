@@ -167,7 +167,11 @@ function getLocalHistory() {
 }
 
 function saveLocalHistory(list) {
-  localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(list || []));
+  try {
+    localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(list || []));
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 function readDraft() {
@@ -176,8 +180,16 @@ function readDraft() {
     if (!raw) {
       raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
-        sessionStorage.setItem(DRAFT_KEY, raw);
-        localStorage.removeItem(DRAFT_KEY);
+        try {
+          sessionStorage.setItem(DRAFT_KEY, raw);
+        } catch {
+          /* ignore quota / private mode */
+        }
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+        } catch {
+          /* ignore */
+        }
       }
     }
     if (!raw) return null;
@@ -220,12 +232,24 @@ function saveState() {
     activeId: state.activeId,
     byWarehouse: state.byWarehouse,
   };
-  sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 function clearDraftStorage() {
-  sessionStorage.removeItem(DRAFT_KEY);
-  localStorage.removeItem(DRAFT_KEY);
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 function cloudReady() {
@@ -1266,7 +1290,17 @@ function openNewAuditWindow() {
   u.search = "";
   u.searchParams.set("new", "1");
   u.hash = "";
-  window.open(u.toString(), "_blank", "noopener,noreferrer");
+  const href = u.toString();
+  // Chrome often returns null with noopener even when the tab opens,
+  // and may block window.open entirely — fall back to same-tab start.
+  let opened = null;
+  try {
+    opened = window.open(href, "_blank");
+  } catch {
+    opened = null;
+  }
+  if (opened) return;
+  startNewAudit();
 }
 
 function continueDraft() {
@@ -1314,14 +1348,20 @@ function bind() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
   });
-  $("#meta-auditor").addEventListener("input", (e) => {
-    state.meta.auditor = e.target.value;
-    saveState();
-  });
-  $("#meta-date").addEventListener("change", (e) => {
-    state.meta.date = e.target.value;
-    saveState();
-  });
+  const metaAuditor = $("#meta-auditor");
+  if (metaAuditor) {
+    metaAuditor.addEventListener("input", (e) => {
+      state.meta.auditor = e.target.value;
+      saveState();
+    });
+  }
+  const metaDate = $("#meta-date");
+  if (metaDate) {
+    metaDate.addEventListener("change", (e) => {
+      state.meta.date = e.target.value;
+      saveState();
+    });
+  }
 
   window.__addWarehouse = addWarehouse;
   document.addEventListener("click", (e) => {
@@ -1412,6 +1452,13 @@ async function boot() {
       "<main style='padding:2rem;font-family:sans-serif'><h1>Ошибка запуска</h1><p>" +
       String(err && err.message ? err.message : err) +
       "</p></main>";
+  } finally {
+    // Never leave both screens hidden (blank page in Chrome).
+    const welcome = $("#welcome");
+    const shell = $("#app-shell");
+    if (welcome && shell && welcome.hidden && shell.hidden) {
+      welcome.hidden = false;
+    }
   }
 }
 
