@@ -46,10 +46,8 @@ function emptyWarehouseState() {
 }
 
 function defaultState(data) {
-  const warehouses = (data.warehouses || ["Склад 1", "Склад 2"]).map((name) => ({
-    id: uid(),
-    name,
-  }));
+  const names = data.warehouses && data.warehouses.length ? data.warehouses : ["Склад 1"];
+  const warehouses = [{ id: uid(), name: names[0] }];
   const byWarehouse = {};
   for (const w of warehouses) byWarehouse[w.id] = emptyWarehouseState();
   return {
@@ -281,14 +279,18 @@ function renderWarehouses() {
   list.innerHTML = "";
   state.warehouses.forEach((w) => {
     const row = el("div", { className: `wh-row${w.id === state.activeId ? " active" : ""}` });
-    const input = el("input", {
-      type: "text",
-      value: w.name,
-      onInput: (e) => {
-        w.name = e.target.value;
-        saveState();
-        updateWhLabels();
-      },
+    const options = DATA.warehouses && DATA.warehouses.length ? DATA.warehouses.slice() : [w.name];
+    if (!options.includes(w.name)) options.unshift(w.name);
+    const input = el("select");
+    options.forEach((name) => {
+      const o = el("option", { value: name, text: name });
+      if (name === w.name) o.selected = true;
+      input.append(o);
+    });
+    input.addEventListener("change", () => {
+      w.name = input.value;
+      saveState();
+      updateWhLabels();
     });
     const activate = el("button", {
       type: "button",
@@ -1105,7 +1107,10 @@ function importBackup(file) {
 }
 
 function addWarehouse() {
-  const w = { id: uid(), name: `Склад ${state.warehouses.length + 1}` };
+  const used = new Set(state.warehouses.map((x) => x.name));
+  const options = DATA.warehouses && DATA.warehouses.length ? DATA.warehouses : [];
+  const nextName = options.find((name) => !used.has(name)) || `Склад ${state.warehouses.length + 1}`;
+  const w = { id: uid(), name: nextName };
   state.warehouses.push(w);
   state.byWarehouse[w.id] = emptyWarehouseState();
   state.activeId = w.id;

@@ -386,7 +386,8 @@ textarea {
   background: var(--accent-soft);
 }
 
-.wh-row input[type="text"] {
+.wh-row input[type="text"],
+.wh-row select {
   flex: 1;
   min-width: 180px;
 }
